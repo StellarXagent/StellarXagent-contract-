@@ -86,15 +86,47 @@ fi
 check_balance "Buyer balance after purchase" "4500"
 echo ""
 
-# ── 5. Admin remints tokens via marketplace ─────────────────────────────
-echo "─── Step 5: Admin remints 2000 tokens ───"
+# ── 5. Admin registers a private prompt ───────────────────────────────────
+echo "─── Step 5: Register private prompt (Hash) at price 700 ───"
+# Commitment format: SHA256("PMPT_V1" || prompt_id || high-entropy salt).
+# The salt is generated freshly for every run; it is not a prompt identifier.
+PRIVATE_SALT="$(openssl rand -hex 32)"
+PRIVATE_HASH="$(printf 'PMPT_V1\\0private-integration-prompt\\0%s' "$PRIVATE_SALT" | shasum -a 256 | awk '{print $1}')"
+send_yes "$MKT" default register_private_prompt \
+  --prompt_hash "$PRIVATE_HASH" \
+  --price 700 \
+  --owner "$BUYER"
+pass "Private prompt registered"
+echo ""
+
+# ── 6. Buyer buys the private prompt ────────────────────────────────────
+echo "─── Step 6: Buyer buys private prompt ───"
+send_yes "$MKT" buyer buy_private_prompt \
+  --buyer "$BUYER" \
+  --prompt_hash "$PRIVATE_HASH"
+pass "Private buy succeeded (tokens burned!)"
+echo ""
+
+# ── 7. Verify private access + balance ──────────────────────────────────
+echo "─── Step 7: Verify private access and balance ───"
+p_access=$(invoke_ro "$MKT" has_private_access --user "$BUYER" --prompt_hash "$PRIVATE_HASH")
+if [[ "$p_access" == "true" ]]; then
+  pass "has_private_access = true"
+else
+  fail "has_private_access expected true, got $p_access"
+fi
+check_balance "Buyer balance after private purchase" "3800"
+echo ""
+
+# ── 8. Admin remints tokens via marketplace ─────────────────────────────
+echo "─── Step 8: Admin remints 2000 tokens ───"
 send_yes "$MKT" default remint --to "$BUYER" --amount 2000
 pass "Remint succeeded (cross-contract mint works!)"
 echo ""
 
-# ── 6. Verify final balance ─────────────────────────────────────────────
-echo "─── Step 6: Final balance check ───"
-check_balance "Final balance" "6500"
+# ── 9. Verify final balance ─────────────────────────────────────────────
+echo "─── Step 9: Final balance check ───"
+check_balance "Final balance" "5800"
 echo ""
 
 echo "═══════════════════════════════════════════════════════"

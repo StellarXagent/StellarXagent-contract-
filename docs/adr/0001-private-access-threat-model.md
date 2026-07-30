@@ -1,7 +1,7 @@
 # ADR 0001: Private Access Threat Model
 
 ## Status
-Proposed
+Approved and Implemented
 
 ## Context
 Before implementing a private-access registry in the Soroban smart contracts for the Stellar-AgentVerse platform, it is crucial to strictly define the security architecture and evaluate trade-offs. The current system handles prompt sales via contracts (`PromptMarketplace`, `MyToken`). We need to guarantee the privacy of the prompts accessed by authorized buyers, minimizing exposure on the blockchain. Since this analysis focuses on the **Smart Contracts** layer, we evaluate how to design the contracts to support secure private access without leaking sensitive information on the public Stellar network.
@@ -60,10 +60,20 @@ If ZK or another advanced technology is adopted in the future, the contract must
 *   **Integration Tests**: Simulate opaque purchase flows on testnet and verify correct token deduction.
 
 ## Decision
-*(To be finalized upon approval)*
-We recommend moving forward with an **Opaque Access Records (Hashes/Commitments)** approach at the smart contract level, combined with secure off-chain handling. This avoids massive ZK costs while sanitizing on-chain state and events of sensitive information.
+**Approved**.
+We have implemented the **Opaque Access Records (Hashes/Commitments)** approach natively in `PromptMarketplace` using `BytesN<32>` hashes. This avoids massive ZK costs while sanitizing on-chain state and events of sensitive information.
+
+### Implemented Evidence & Cryptography Assumptions
+
+*   **Commitment Construction & Entropy**: Hashes (`BytesN<32>`) must be generated off-chain using a cryptographic hash function (e.g., SHA-256) applying domain separation and a high-entropy salt to prevent preimage/dictionary attacks. The required format is: `Hash = SHA256(Domain_Separator || Prompt_ID || High_Entropy_Salt)`. Example domain separator: `PMPT_V1`.
+*   **Resource-Cost Measurements**: The feasibility test records host CPU and memory deltas for an opaque access write. Those numbers are not a Testnet fee quote: fees also depend on the network fee schedule, transaction footprint, and storage rent. A deployment decision must record a `simulateTransaction`/Testnet result for the exact deployed WASM.
+*   **Privacy Guarantees**: Prompt content, URIs, and human-readable IDs are never exposed on-chain or in event schemas. Validated by storage and event inspection tests rejecting plaintext.
+*   **Residual Metadata Leaks**: The transaction submitter (buyer), exact time of purchase, and the price (tokens burned) remain public. The opaque hash allows linkability if the same prompt is bought multiple times by different users.
+*   **Failure Modes & Atomic Transitions**: Replay attacks are prevented via atomic storage updates (`PrivatePurchase` key mapping). If token deduction fails (e.g., insufficient balance), the entire transaction rolls back atomically, preventing partial entitlement. Unauthorized registrations are blocked by `require_auth`.
+*   **Key-Lifecycle Assumptions**: The contract does not store or manage DEKs (Data Encryption Keys). The backend manages key rotation. The smart contract acts exclusively as an authorization ledger. A private access record is perpetual by default; an authorized administrator may invalidate it with `revoke_private_access`. No automatic cleanup is needed while a grant is valid; the contract instance TTL and upgrades remain the operational storage lifecycle.
+*   **Delivery-Service Trust**: Buyers must trust the off-chain delivery service to respect the on-chain purchase event and securely deliver the decrypted prompt content. The contract cannot mathematically enforce the off-chain delivery (no ZK/escrow).
 
 ## Consequences
 *   We will modify `PromptMarketplace` to accept opaque identifiers (hashes) instead of plaintext prompt IDs.
-*   Emitted events will be restructured to maximize privacy.
-*   Changes will be required in how clients construct transactions (client-side hashing before calling the contract).
+*   Emitted events are versioned (`*_v1`) for indexers. They expose the unavoidable buyer, commitment, and price metadata, but never a plaintext prompt identifier or key.
+*   Changes will be required in how clients construct transactions: the trusted registration path must generate `SHA256("PMPT_V1" || prompt_id || fresh_32_byte_salt)` and retain the salt off-chain. The contract cannot validate this preimage because it intentionally never receives it; it only accepts the resulting opaque 32-byte commitment.
