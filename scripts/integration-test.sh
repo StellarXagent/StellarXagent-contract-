@@ -99,7 +99,7 @@ echo "─── Step 3: Buyer buys prompt ───"
 send_yes "$MKT" buyer buy_prompt \
   --buyer "$BUYER" \
   --prompt_id "test-prompt-1"
-pass "Buy succeeded (auth forwarding works!)"
+pass "Buy succeeded (trusted marketplace burn works!)"
 echo ""
 
 # ── 4. Verify access + balance ──────────────────────────────────────────

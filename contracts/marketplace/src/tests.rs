@@ -614,39 +614,14 @@ fn test_token_mint_and_balance() {
     assert_eq!(bal, 1000);
 }
 
-// ─── Cross-contract auth note ─────────────────────────────
+// Cross-contract auth note:
 //
-// Soroban v25's mock auth cannot satisfy a SECOND require_auth() for the
-// SAME address within one call tree: if a root invocation calls
-// `buyer.require_auth()` and then a sub-invocation (e.g. marketplace →
-// token via `invoke_contract`) also calls `require_auth()` for `buyer`,
-// the host rejects it with `Error(Auth, ExistingValue)` — mock auth has
-// no way to represent "this address already authorized higher up."
+// The marketplace keeps buyer/admin auth at the root call. The token also
+// requires the configured marketplace contract to authorize forwarded token
+// calls via `authorize_as_current_contract`.
 //
-// This codebase avoids that limitation by design: `sell_forwarded` and
-// `mint_forwarded` (contracts/tokens/src/contract.rs) do NOT call
-// `require_auth()` at all — they trust that the root invocation
-// (`buy_prompt` / `remint`) already authorized the relevant address. As a
-// result, the tests below CAN mock_auths() the single root-level
-// require_auth() and exercise the real cross-contract call
-// (marketplace → token via `invoke_contract`) end-to-end, including
-// balance changes and event emission. No `sub_invokes` entries are
-// needed because no nested require_auth() happens on the token side.
-//
-// The risk this still carries: `sell_forwarded` / `mint_forwarded` skip
-// auth entirely, so anyone who could call them directly (bypassing the
-// marketplace) could mint or burn arbitrary balances. That trust boundary
-// is exercised explicitly in `contracts/tokens/src/tests.rs`
-// (`test_sell_forwarded_updates_balance`, `test_mint_forwarded_mints_tokens`),
-// which invoke them directly with NO mock_auths() at all to prove they
-// truly require no authorization — i.e. to prove the danger the SDD
-// warns about, not just the happy path.
-//
-// `scripts/integration-test.sh` additionally exercises the same flow
-// end-to-end against real testnet auth (Soroban CLI signing), which is
-// the only place a genuine nested require_auth (if ever reintroduced)
-// would actually be caught.
-
+// Token tests cover direct external calls, missing marketplace binding,
+// insufficient holder/owner auth, and retarget attempts.
 #[test]
 fn test_buy_prompt_cross_contract() {
     let Ctx {
