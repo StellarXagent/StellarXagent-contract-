@@ -22,10 +22,10 @@ Dos contratos Soroban desplegados en **Testnet**, conectados entre sí:
 
 ## Tests
 
-### Unit tests (49)
+### Unit tests (52)
 
 ```bash
-# Todos los tests (49)
+# Todos los tests (52)
 SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test --workspace --target aarch64-apple-darwin
 
 # Por paquete
@@ -54,7 +54,7 @@ MKT="CA6RRLV4IBLKRRLPUDCVXZFDKRE77YHBNJFSXEFFLXV6EUAVVVS6HJUQ" \
 bash scripts/integration-test.sh
 ```
 
-### Token: 13 tests
+### Token: 16 tests
 
 | Test | Qué cubre |
 |---|---|
@@ -65,12 +65,15 @@ bash scripts/integration-test.sh
 | `test_mint_overflow_panics` | i128::MAX + 1 debe panic |
 | `test_zero_balance_default` | Balance por defecto es 0 |
 | `test_set_marketplace_stores_address` | Owner configura el marketplace confiable |
+| `test_get_marketplace_fails_before_binding` | Leer marketplace falla si aun no fue configurado |
 | `test_set_marketplace_requires_owner` | No-owner no puede configurar el marketplace |
 | `test_set_marketplace_cannot_retarget` | El marketplace no puede retargetearse silenciosamente |
 | `test_sell_forwarded_fails_without_marketplace_binding` | Burn forwarded falla si no hay marketplace configurado |
 | `test_sell_forwarded_fails_from_direct_external_call` | Llamada directa externa no puede quemar tokens |
+| `test_sell_forwarded_rejects_holder_auth_without_marketplace_caller` | Auth del holder no sustituye al caller marketplace |
 | `test_mint_forwarded_fails_without_marketplace_binding` | Mint forwarded falla si no hay marketplace configurado |
 | `test_mint_forwarded_fails_from_direct_external_call` | Llamada directa externa no puede mintear tokens |
+| `test_mint_forwarded_rejects_owner_auth_without_marketplace_caller` | Auth del owner no sustituye al caller marketplace |
 
 ### Marketplace: 36 tests
 
