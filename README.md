@@ -12,20 +12,22 @@ Dos contratos Soroban desplegados en **Testnet**, conectados entre sí:
 ## Deploy en Testnet
 
 | Contrato | ID | Wasm Hash | Tamaño |
-|---|---|---|---|---|
+|---|---|---|---|
 | **MyToken** | `CCHAUOEVX6TQD56VFZY2GI3N3HNF5W6QSRRKAGKDXV6S53T4BKD5PYQD` | `6613593d...` | 9.7 KB |
 | **PromptMarketplace** | `CA6RRLV4IBLKRRLPUDCVXZFDKRE77YHBNJFSXEFFLXV6EUAVVVS6HJUQ` | `f31af684...` | 5.6 KB |
 
-**Arquitectura**: el marketplace almacena el ID del token en `__constructor`. El token almacena una unica direccion de marketplace confiable con `set_marketplace`, ejecutable una sola vez por el owner. `buy_prompt` y `buy_private_prompt` llaman a `my_token::sell_forwarded` via `env.invoke_contract`; `remint` llama a `my_token::mint_forwarded`. Antes de cada sub-invocacion el marketplace llama `authorize_as_current_contract`, y el token rechaza cualquier caller que no sea el marketplace enlazado.
+> ⚠️ **Estas instancias son anteriores a `set_marketplace`.** Siguen exponiendo `mint_forwarded` / `sell_forwarded` sin caller confiable. No las uses para medir economía ni como referencia del modelo de auth actual. Hay que redeployar token + marketplace y bindear con `set_marketplace` una sola vez.
+
+**Arquitectura actual**: el marketplace almacena el ID del token en `__constructor`. El token almacena una única dirección de marketplace Wasm con `set_marketplace`, ejecutable una sola vez por el owner; una cuenta (`G...`) o el propio token se rechazan. `buy_prompt` y `buy_private_prompt` llaman a `my_token::sell_forwarded` vía `env.invoke_contract`; `remint` llama a `my_token::mint_forwarded`. Antes de cada sub-invocación el marketplace llama `authorize_as_current_contract`, y el token rechaza cualquier caller que no sea el marketplace enlazado.
 
 ---
 
 ## Tests
 
-### Unit tests (53)
+### Unit tests (58)
 
 ```bash
-# Todos los tests (53)
+# Todos los tests (58)
 SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test --workspace --target aarch64-apple-darwin
 
 # Por paquete
@@ -33,13 +35,13 @@ SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test -p my-token --tar
 SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test -p prompt-marketplace --target aarch64-apple-darwin
 ```
 
-> En Linux/CI usa `--target x86_64-unknown-linux-gnu`, y en Windows usa `--target x86_64-pc-windows-msvc`, en vez de `aarch64-apple-darwin`. El target por defecto del workspace (`.cargo/config.toml`) es `wasm32v1-none`, que no soporta `cargo test` — siempre hay que pasar `--target` explicito para correr tests.
+> En Linux/CI usa `--target x86_64-unknown-linux-gnu`, y en Windows usa `--target x86_64-pc-windows-msvc`, en vez de `aarch64-apple-darwin`. El target por defecto del workspace (`.cargo/config.toml`) es `wasm32v1-none`, que no soporta `cargo test` — siempre hay que pasar `--target` explícito para correr tests.
 
-### Autorizacion cross-contract en Soroban v25
+### Autorización cross-contract en Soroban v25
 
 Soroban v25's mock auth no puede satisfacer un SEGUNDO `require_auth()` para la MISMA address dentro de un mismo árbol de invocación: si la invocación raíz llama `buyer.require_auth()` y luego una sub-invocación (marketplace → token vía `invoke_contract`) también llama `require_auth()` para `buyer`, el host rechaza con `Error(Auth, ExistingValue)` — mock auth no tiene forma de representar "esta address ya autorizó más arriba en el árbol".
 
-**Mitigacion adoptada en este codigo:** `sell_forwarded` y `mint_forwarded` (`contracts/tokens/src/contract.rs`) solo mutan balances si el marketplace enlazado con `set_marketplace` autoriza la llamada. El marketplace hace esa autorizacion con `authorize_as_current_contract` justo antes de invocar al token. Una llamada directa externa, una llamada sin marketplace configurado o una llamada desde otro marketplace falla antes de cambiar balance o supply.
+**Mitigación adoptada en este código:** `sell_forwarded` y `mint_forwarded` (`contracts/tokens/src/contract.rs`) solo mutan balances si el marketplace Wasm enlazado con `set_marketplace` autoriza la llamada. El marketplace hace esa autorización con `authorize_as_current_contract` justo antes de invocar al token. Una llamada directa externa, una llamada sin marketplace configurado, una llamada desde otro marketplace, o un binding a una cuenta (`G...`) falla antes de cambiar balance o supply.
 
 `scripts/integration-test.sh` ejercita el mismo flujo de punta a punta contra testnet real con firmas genuinas (Soroban CLI), que es el único lugar donde un `require_auth()` anidado genuino (si se reintrodujera por error) sería detectado.
 
@@ -48,13 +50,14 @@ Soroban v25's mock auth no puede satisfacer un SEGUNDO `require_auth()` para la 
 Prueba el flujo completo contra testnet real: mint → register → buy (cross-contract) → verify → remint → verify.
 
 ```bash
-# Con los contracts deployados actuales
-TOKEN="CCHAUOEVX6TQD56VFZY2GI3N3HNF5W6QSRRKAGKDXV6S53T4BKD5PYQD" \
-MKT="CA6RRLV4IBLKRRLPUDCVXZFDKRE77YHBNJFSXEFFLXV6EUAVVVS6HJUQ" \
+# Requiere contratos recién desplegados y bindeados. Los IDs de la tabla de
+# Testnet de arriba NO sirven: no implementan get_marketplace.
+TOKEN="<MY_TOKEN_ID>" \
+MKT="<MARKETPLACE_ID>" \
 bash scripts/integration-test.sh
 ```
 
-### Token: 16 tests
+### Token: 21 tests
 
 | Test | Qué cubre |
 |---|---|
@@ -66,14 +69,19 @@ bash scripts/integration-test.sh
 | `test_zero_balance_default` | Balance por defecto es 0 |
 | `test_set_marketplace_stores_address` | Owner configura el marketplace confiable |
 | `test_get_marketplace_fails_before_binding` | Leer marketplace falla si aun no fue configurado |
-| `test_set_marketplace_requires_owner` | No-owner no puede configurar el marketplace |
+| `test_set_marketplace_requires_owner` | No-owner no puede configurar el marketplace; el binding no se escribe |
 | `test_set_marketplace_cannot_retarget` | El marketplace no puede retargetearse silenciosamente |
+| `test_set_marketplace_rejects_account_address` | Una cuenta (`G...`) no puede ser el marketplace |
+| `test_set_marketplace_rejects_token_self` | El token no puede bindearse a sí mismo |
 | `test_sell_forwarded_fails_without_marketplace_binding` | Burn forwarded falla si no hay marketplace configurado |
 | `test_sell_forwarded_fails_from_direct_external_call` | Llamada directa externa no puede quemar tokens |
 | `test_sell_forwarded_rejects_holder_auth_without_marketplace_caller` | Auth del holder no sustituye al caller marketplace |
+| `test_sell_forwarded_updates_balance` | Happy path: marketplace auth quema tokens y emite `SellEvent` |
 | `test_mint_forwarded_fails_without_marketplace_binding` | Mint forwarded falla si no hay marketplace configurado |
 | `test_mint_forwarded_fails_from_direct_external_call` | Llamada directa externa no puede mintear tokens |
 | `test_mint_forwarded_rejects_owner_auth_without_marketplace_caller` | Auth del owner no sustituye al caller marketplace |
+| `test_mint_forwarded_updates_balance` | Happy path: marketplace auth mintea tokens y emite `MintEvent` |
+| `test_mint_forwarded_rejects_non_positive_amount` | Amount 0 paniquea en el camino forwarded |
 
 ### Marketplace: 36 tests
 
@@ -131,7 +139,7 @@ stellar contract deploy \
   --symbol "PRMPT" \
   --decimals 7
 
-# Marketplace (usar el ID del token deployado)
+# Marketplace (usar el ID del token recién deployado)
 stellar contract deploy \
   --wasm target/wasm32v1-none/release/prompt_marketplace.wasm \
   --source default \
@@ -139,17 +147,17 @@ stellar contract deploy \
   --alias prompt_marketplace \
   -- \
   --admin "$(stellar keys address default)" \
-  --token "CCHAUOEVX6TQD56VFZY2GI3N3HNF5W6QSRRKAGKDXV6S53T4BKD5PYQD"
+  --token "$TOKEN_ID"
 
-# Bind token -> marketplace once (usar el ID real del marketplace deployado)
+# Bind token -> marketplace once (IDs reales del deploy de arriba, no los de la tabla)
 stellar contract invoke \
-  --id "CCHAUOEVX6TQD56VFZY2GI3N3HNF5W6QSRRKAGKDXV6S53T4BKD5PYQD" \
+  --id "$TOKEN_ID" \
   --source default \
   --network testnet \
   --send=yes \
   -- \
   set_marketplace \
-  --marketplace "CA6RRLV4IBLKRRLPUDCVXZFDKRE77YHBNJFSXEFFLXV6EUAVVVS6HJUQ"
+  --marketplace "$MARKETPLACE_ID"
 ```
 
 ## Deploy en Mainnet
@@ -176,9 +184,9 @@ stellar contract invoke \
   export SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1
   ```
 
-### Migracion de instancias existentes
+### Migración de instancias existentes
 
-Las instancias desplegadas antes de `set_marketplace` no deben usarse para valor real. Para migrar, despliega un nuevo `MyToken`, despliega un nuevo `PromptMarketplace` apuntando a ese token, ejecuta `set_marketplace` una sola vez en el token con el ID del marketplace nuevo y verifica `get_marketplace`. Los balances y compras existentes no se reinterpretan automaticamente; cualquier migracion de balances debe ser una operacion explicita, revisada y auditable.
+Las instancias desplegadas antes de `set_marketplace` no deben usarse para valor real. Para migrar, despliega un nuevo `MyToken`, despliega un nuevo `PromptMarketplace` apuntando a ese token, ejecuta `set_marketplace` una sola vez en el token con el ID del marketplace nuevo y verifica `get_marketplace`. Los balances y compras existentes no se reinterpretan automáticamente; cualquier migración de balances debe ser una operación explícita, revisada y auditable.
 
 ### Scripts de mainnet
 
@@ -266,6 +274,8 @@ La v1 actual soporta cuentas multisig configuradas en Stellar CLI (el CLI pedir�
 
 ### Invocar
 
+Los IDs de abajo son las instancias viejas de Testnet (sin `set_marketplace`). Sirven solo para lecturas de metadata, no para el flujo de compra actual.
+
 ```bash
 # Leer nombre del token
 stellar contract invoke --source default --network testnet \
@@ -301,7 +311,7 @@ contracts/
 │       │   └── token.rs         # TokenManager — lógica de negocio
 │       ├── storage/
 │       │   └── types.rs         # DataKey, contracttype structs
-│       └── tests.rs             # 8 tests
+│       └── tests.rs             # 21 tests
 └── marketplace/                 # PromptMarketplace
     ├── Cargo.toml
     └── src/
@@ -309,7 +319,7 @@ contracts/
         ├── contract.rs          # #[contract] PromptMarketplace — API pública
         ├── storage/
         │   └── types.rs         # DataKey, Prompt struct, errors
-        └── tests.rs             # 21 tests
+        └── tests.rs             # 36 tests
 Cargo.toml                       # workspace: tokens + marketplace
 ```
 
@@ -326,13 +336,13 @@ Cargo.toml                       # workspace: tokens + marketplace
 
 `soroban-sdk` v25 tiene una limitación: `require_auth()` para una misma dirección solo puede ejecutarse UNA VEZ por árbol de llamadas. Llamarlo en la root invocation y luego en una sub-invocación (via `invoke_contract`) falla con `Error(Auth, ExistingValue)`.
 
-**Patron adoptado:**
+**Patrón adoptado:**
 
-- La funcion raiz (ej. `buy_prompt`, `buy_private_prompt`, `remint`) llama `require_auth()` para buyer/admin.
+- La función raíz (ej. `buy_prompt`, `buy_private_prompt`, `remint`) llama `require_auth()` para buyer/admin.
 - El marketplace autoriza la llamada al token con `authorize_as_current_contract`.
-- El token guarda un unico marketplace con `set_marketplace`; `sell_forwarded` y `mint_forwarded` exigen `marketplace.require_auth()` antes de mutar balances.
+- El token guarda un único marketplace Wasm con `set_marketplace`; `sell_forwarded` y `mint_forwarded` exigen `marketplace.require_auth()` antes de mutar balances.
 - Para operaciones directas (sin marketplace), el token expone `sell` (con `require_auth`) y `mint` (con `#[only_owner]`).
 
 Esto aplica también a `TokenManager::sell` que usa `Base::update` en vez de `Base::burn` para evitar el doble `require_auth` de `Base::burn`.
 
-Ver [Autorizacion cross-contract en Soroban v25](#autorizacion-cross-contract-en-soroban-v25) para como este patron se prueba en los tests.
+Ver [Autorización cross-contract en Soroban v25](#autorización-cross-contract-en-soroban-v25) para cómo este patrón se prueba en los tests.
