@@ -32,22 +32,31 @@ impl MyToken {
         TokenManager::mint(e, &to, amount);
     }
 
+    /// Bind the single marketplace allowed to use cross-contract mint/burn paths.
+    #[only_owner]
+    pub fn set_marketplace(e: &Env, marketplace: Address) {
+        TokenManager::set_marketplace(e, &marketplace);
+    }
+
+    pub fn get_marketplace(e: &Env) -> Address {
+        TokenManager::get_marketplace(e)
+    }
+
     #[when_not_paused]
     pub fn sell(e: &Env, seller: Address, amount: i128) {
         TokenManager::sell(e, &seller, amount);
     }
 
-    /// Same as `sell` but without `require_auth`. Intended for contract-to-contract
-    /// calls (e.g. marketplace) where auth is forwarded from the root invocation.
+    /// Marketplace-only burn path for cross-contract purchase flows.
     #[when_not_paused]
     pub fn sell_forwarded(e: &Env, seller: Address, amount: i128) {
         TokenManager::sell_forwarded(e, &seller, amount);
     }
 
-    /// Same as `mint` but without `require_auth`. Intended for contract-to-contract
-    /// calls (e.g. marketplace `remint`) where auth is forwarded from the root.
+    /// Marketplace-only mint path for cross-contract remint flows.
     #[when_not_paused]
     pub fn mint_forwarded(e: &Env, to: Address, amount: i128) {
+        TokenManager::require_marketplace(e);
         TokenManager::mint(e, &to, amount);
     }
 }
