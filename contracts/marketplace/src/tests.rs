@@ -70,6 +70,15 @@ fn setup_env() -> Ctx {
     }
 }
 
+fn setup_two_marketplaces() -> (Ctx, PromptMarketplaceClient<'static>, Address) {
+    let ctx = setup_env();
+    let other_mkt_id = ctx
+        .env
+        .register(PromptMarketplace, (ctx.admin.clone(), ctx.token_id.clone()));
+    let other_mkt = PromptMarketplaceClient::new(&ctx.env, &other_mkt_id);
+    (ctx, other_mkt, other_mkt_id)
+}
+
 // ─── Marketplace storage logic (via client + mock_auths) ────
 
 #[test]
@@ -688,6 +697,57 @@ fn test_buy_prompt_cross_contract() {
 }
 
 #[test]
+fn test_unbound_marketplace_cannot_burn_forwarded_tokens() {
+    let (
+        Ctx {
+            env,
+            token_id,
+            admin,
+            creator,
+            buyer,
+            uri,
+            ..
+        },
+        other_mkt,
+        other_mkt_id,
+    ) = setup_two_marketplaces();
+    let pid = String::from_str(&env, "wrong-burn-caller");
+
+    env.as_contract(&token_id, || {
+        TokenBase::mint(&env, &buyer, 1000);
+    });
+
+    other_mkt
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &other_mkt_id,
+                fn_name: "register_prompt",
+                args: (&pid, 500i128, &creator, &uri).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .register_prompt(&pid, &500, &creator, &uri);
+
+    let result = other_mkt
+        .mock_auths(&[MockAuth {
+            address: &buyer,
+            invoke: &MockAuthInvoke {
+                contract: &other_mkt_id,
+                fn_name: "buy_prompt",
+                args: (&buyer, &pid).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_buy_prompt(&buyer, &pid);
+
+    assert!(result.is_err());
+    let bal: i128 = env.as_contract(&token_id, || TokenBase::balance(&env, &buyer));
+    assert_eq!(bal, 1000);
+    assert!(!other_mkt.has_access(&buyer, &pid));
+}
+
+#[test]
 #[should_panic(expected = "prompt not found")]
 fn test_buy_prompt_unregistered_panics() {
     let Ctx {
@@ -942,6 +1002,37 @@ fn test_remint_cross_contract() {
 
     let bal: i128 = env.as_contract(&token_id, || TokenBase::balance(&env, &buyer));
     assert_eq!(bal, 2000, "tokens must be minted via mint_forwarded");
+}
+
+#[test]
+fn test_unbound_marketplace_cannot_mint_forwarded_tokens() {
+    let (
+        Ctx {
+            env,
+            token_id,
+            admin,
+            buyer,
+            ..
+        },
+        other_mkt,
+        other_mkt_id,
+    ) = setup_two_marketplaces();
+
+    let result = other_mkt
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &other_mkt_id,
+                fn_name: "remint",
+                args: (&buyer, 2000i128).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_remint(&buyer, &2000);
+
+    assert!(result.is_err());
+    let bal: i128 = env.as_contract(&token_id, || TokenBase::balance(&env, &buyer));
+    assert_eq!(bal, 0);
 }
 
 #[test]
