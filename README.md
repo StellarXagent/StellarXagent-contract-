@@ -22,10 +22,10 @@ Dos contratos Soroban desplegados en **Testnet**, conectados entre sí:
 
 ## Tests
 
-### Unit tests (52)
+### Unit tests (53)
 
 ```bash
-# Todos los tests (52)
+# Todos los tests (53)
 SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test --workspace --target aarch64-apple-darwin
 
 # Por paquete
