@@ -174,6 +174,10 @@ stellar contract invoke \
   export SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1
   ```
 
+### Migracion de instancias existentes
+
+Las instancias desplegadas antes de `set_marketplace` no deben usarse para valor real. Para migrar, despliega un nuevo `MyToken`, despliega un nuevo `PromptMarketplace` apuntando a ese token, ejecuta `set_marketplace` una sola vez en el token con el ID del marketplace nuevo y verifica `get_marketplace`. Los balances y compras existentes no se reinterpretan automaticamente; cualquier migracion de balances debe ser una operacion explicita, revisada y auditable.
+
 ### Scripts de mainnet
 
 #### `scripts/deploy-mainnet.sh`
