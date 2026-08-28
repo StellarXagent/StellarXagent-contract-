@@ -1,4 +1,5 @@
 use soroban_sdk::{
+    auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
     contract, contracterror, contractevent, contractimpl, vec, Address, BytesN, Env, IntoVal,
     String, Symbol, Val, Vec,
 };
@@ -263,6 +264,7 @@ impl PromptMarketplace {
         let token = Self::get_token(e);
         let sell_sym = Symbol::new(e, "sell_forwarded");
         let sell_args: Vec<Val> = vec![&e, buyer.clone().into_val(e), prompt.price.into_val(e)];
+        Self::authorize_token_call(e, token.clone(), sell_sym.clone(), sell_args.clone());
         let _: () = e.invoke_contract(&token, &sell_sym, sell_args);
 
         // Mark the purchase so has_access returns true.
@@ -294,6 +296,7 @@ impl PromptMarketplace {
         let token = Self::get_token(e);
         let sell_sym = Symbol::new(e, "sell_forwarded");
         let sell_args: Vec<Val> = vec![&e, buyer.clone().into_val(e), prompt.price.into_val(e)];
+        Self::authorize_token_call(e, token.clone(), sell_sym.clone(), sell_args.clone());
         let _: () = e.invoke_contract(&token, &sell_sym, sell_args);
 
         e.storage().instance().set(&purchase_key, &true);
@@ -344,6 +347,7 @@ impl PromptMarketplace {
         let token = Self::get_token(e);
         let mint_sym = Symbol::new(e, "mint_forwarded");
         let mint_args: Vec<Val> = vec![&e, to.clone().into_val(e), amount.into_val(e)];
+        Self::authorize_token_call(e, token.clone(), mint_sym.clone(), mint_args.clone());
         let _: () = e.invoke_contract(&token, &mint_sym, mint_args);
 
         TokensReminted {
@@ -414,5 +418,21 @@ impl PromptMarketplace {
             .get(&DataKey::Admin)
             .expect("not initialized");
         admin.require_auth();
+    }
+
+    fn authorize_token_call(e: &Env, token: Address, fn_name: Symbol, args: Vec<Val>) {
+        let context = ContractContext {
+            contract: token,
+            fn_name,
+            args,
+        };
+        let invocation = SubContractInvocation {
+            context,
+            sub_invocations: Vec::new(e),
+        };
+        e.authorize_as_current_contract(vec![
+            e,
+            InvokerContractAuthEntry::Contract(invocation),
+        ]);
     }
 }
