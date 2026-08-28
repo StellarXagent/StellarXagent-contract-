@@ -33,7 +33,7 @@ SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test -p my-token --tar
 SOROBAN_SDK_BUILD_SYSTEM_SUPPORTS_SPEC_SHAKING_V2=1 cargo test -p prompt-marketplace --target aarch64-apple-darwin
 ```
 
-> En Linux/CI usa `--target x86_64-unknown-linux-gnu` en vez de `aarch64-apple-darwin`. El target por defecto del workspace (`.cargo/config.toml`) es `wasm32v1-none`, que no soporta `cargo test` — siempre hay que pasar `--target` explícito para correr tests.
+> En Linux/CI usa `--target x86_64-unknown-linux-gnu`, y en Windows usa `--target x86_64-pc-windows-msvc`, en vez de `aarch64-apple-darwin`. El target por defecto del workspace (`.cargo/config.toml`) es `wasm32v1-none`, que no soporta `cargo test` — siempre hay que pasar `--target` explicito para correr tests.
 
 ### Autorizacion cross-contract en Soroban v25
 
