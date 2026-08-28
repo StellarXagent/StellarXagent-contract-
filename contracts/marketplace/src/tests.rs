@@ -4,7 +4,7 @@ use crate::contract::{
     PrivatePromptPurchased, PrivatePromptRegistered, PromptMarketplace, PromptMarketplaceClient,
     PromptPurchased, TokensReminted,
 };
-use my_token::MyToken;
+use my_token::{MyToken, MyTokenClient};
 use soroban_sdk::{
     testutils::{Address as _, Events as _, MockAuth, MockAuthInvoke},
     Address, Bytes, BytesN, Env, Event, IntoVal, String,
@@ -44,6 +44,19 @@ fn setup_env() -> Ctx {
     let mkt_id = env.register(PromptMarketplace, (admin.clone(), token_id.clone()));
     let mkt = PromptMarketplaceClient::new(&env, &mkt_id);
     let uri = String::from_str(&env, "ipfs://QmTest");
+
+    let token = MyTokenClient::new(&env, &token_id);
+    token
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke {
+                contract: &token_id,
+                fn_name: "set_marketplace",
+                args: (&mkt_id,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .set_marketplace(&mkt_id);
 
     Ctx {
         env,
