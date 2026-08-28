@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, Env, MuxedAddress, String};
+use soroban_sdk::{Address, Env, Executable, MuxedAddress, String};
 use stellar_access::ownable;
 use stellar_tokens::fungible::Base;
 
@@ -14,6 +14,7 @@ impl TokenManager {
     }
 
     pub fn mint(e: &Env, to: &Address, amount: i128) {
+        assert!(amount > 0, "amount must be positive");
         Base::mint(e, to, amount);
         MintEvent {
             admin: ownable::get_owner(e).unwrap(),
@@ -26,6 +27,14 @@ impl TokenManager {
     pub fn set_marketplace(e: &Env, marketplace: &Address) {
         if e.storage().instance().has(&DataKey::Marketplace) {
             panic!("marketplace already set");
+        }
+        if marketplace == &e.current_contract_address() {
+            panic!("marketplace cannot be this token");
+        }
+        // G-addresses can satisfy require_auth() by signing, so binding an
+        // account would grant unlimited forwarded mint/burn to that key.
+        if !matches!(marketplace.executable(), Some(Executable::Wasm(_))) {
+            panic!("marketplace must be a deployed contract");
         }
 
         e.storage()
@@ -69,6 +78,7 @@ impl TokenManager {
     /// Uses `Base::update` directly instead of `Base::burn` to avoid a double
     /// `require_auth` (Base::burn also calls `from.require_auth()`).
     pub fn sell(e: &Env, seller: &Address, amount: i128) {
+        assert!(amount > 0, "amount must be positive");
         seller.require_auth();
         Base::update(e, Some(seller), None, amount);
         SellEvent {
@@ -80,6 +90,7 @@ impl TokenManager {
 
     pub fn sell_forwarded(e: &Env, seller: &Address, amount: i128) {
         Self::require_marketplace(e);
+        assert!(amount > 0, "amount must be positive");
         Base::update(e, Some(seller), None, amount);
         SellEvent {
             seller: seller.clone(),
@@ -88,10 +99,16 @@ impl TokenManager {
         .publish(e);
     }
 
+    pub fn mint_forwarded(e: &Env, to: &Address, amount: i128) {
+        Self::require_marketplace(e);
+        Self::mint(e, to, amount);
+    }
+
     pub fn require_marketplace(e: &Env) {
         let marketplace = Self::get_marketplace(e);
-        // Contract addresses can only satisfy this when they authorized the
-        // sub-invocation as the current contract.
+        // A G-address could satisfy this by signing. set_marketplace therefore
+        // rejects non-contracts so only the bound Wasm contract can authorize
+        // forwarded mint/burn, typically via authorize_as_current_contract.
         marketplace.require_auth();
     }
 }

@@ -18,7 +18,6 @@ pub enum AccError {
     NotFound = 12,
     InvalidAddress = 13,
     AllowanceExceeded = 14,
-    MarketplaceAlreadySet = 15,
 }
 
 #[contracttype]

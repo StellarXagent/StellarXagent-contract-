@@ -1,10 +1,11 @@
 #![cfg(test)]
 extern crate std;
 
+use crate::events::{MintEvent, SellEvent};
 use crate::{MyToken, MyTokenClient};
 use soroban_sdk::{
-    testutils::{Address as _, MockAuth, MockAuthInvoke},
-    Address, Env, IntoVal, String,
+    testutils::{Address as _, Events as _, MockAuth, MockAuthInvoke},
+    Address, Env, Event, IntoVal, String,
 };
 use stellar_tokens::fungible::Base as TokenBase;
 
@@ -38,6 +39,19 @@ fn setup_env_with_owner() -> (Env, Address, Address, Address) {
         ),
     );
     (env, contract_id, user, owner)
+}
+
+fn register_contract_marketplace(env: &Env) -> Address {
+    let owner = Address::generate(env);
+    env.register(
+        MyToken,
+        (
+            owner,
+            String::from_str(env, "Mkt"),
+            String::from_str(env, "MKT"),
+            7u32,
+        ),
+    )
 }
 
 fn bind_marketplace(env: &Env, token_id: &Address, owner: &Address, marketplace: &Address) {
@@ -160,7 +174,7 @@ fn test_zero_balance_default() {
 fn test_set_marketplace_stores_address() {
     let (env, contract_id, _, owner) = setup_env_with_owner();
     let client = MyTokenClient::new(&env, &contract_id);
-    let marketplace = Address::generate(&env);
+    let marketplace = register_contract_marketplace(&env);
 
     bind_marketplace(&env, &contract_id, &owner, &marketplace);
 
@@ -179,7 +193,7 @@ fn test_get_marketplace_fails_before_binding() {
 fn test_set_marketplace_requires_owner() {
     let (env, contract_id, user) = setup_env();
     let client = MyTokenClient::new(&env, &contract_id);
-    let marketplace = Address::generate(&env);
+    let marketplace = register_contract_marketplace(&env);
 
     let result = client
         .mock_auths(&[MockAuth {
@@ -194,14 +208,18 @@ fn test_set_marketplace_requires_owner() {
         .try_set_marketplace(&marketplace);
 
     assert!(result.is_err());
+    assert!(
+        client.try_get_marketplace().is_err(),
+        "non-owner must not write the marketplace binding"
+    );
 }
 
 #[test]
 fn test_set_marketplace_cannot_retarget() {
     let (env, contract_id, _, owner) = setup_env_with_owner();
     let client = MyTokenClient::new(&env, &contract_id);
-    let first_marketplace = Address::generate(&env);
-    let second_marketplace = Address::generate(&env);
+    let first_marketplace = register_contract_marketplace(&env);
+    let second_marketplace = register_contract_marketplace(&env);
 
     bind_marketplace(&env, &contract_id, &owner, &first_marketplace);
 
@@ -219,6 +237,49 @@ fn test_set_marketplace_cannot_retarget() {
 
     assert!(result.is_err());
     assert_eq!(client.get_marketplace(), first_marketplace);
+}
+
+#[test]
+fn test_set_marketplace_rejects_account_address() {
+    let (env, contract_id, _, owner) = setup_env_with_owner();
+    let client = MyTokenClient::new(&env, &contract_id);
+    let account = Address::generate(&env);
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "set_marketplace",
+                args: (&account,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_set_marketplace(&account);
+
+    assert!(result.is_err());
+    assert!(client.try_get_marketplace().is_err());
+}
+
+#[test]
+fn test_set_marketplace_rejects_token_self() {
+    let (env, contract_id, _, owner) = setup_env_with_owner();
+    let client = MyTokenClient::new(&env, &contract_id);
+
+    let result = client
+        .mock_auths(&[MockAuth {
+            address: &owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "set_marketplace",
+                args: (&contract_id,).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .try_set_marketplace(&contract_id);
+
+    assert!(result.is_err());
+    assert!(client.try_get_marketplace().is_err());
 }
 
 #[test]
@@ -241,7 +302,7 @@ fn test_sell_forwarded_fails_without_marketplace_binding() {
 fn test_sell_forwarded_fails_from_direct_external_call() {
     let (env, contract_id, user, owner) = setup_env_with_owner();
     let client = MyTokenClient::new(&env, &contract_id);
-    let marketplace = Address::generate(&env);
+    let marketplace = register_contract_marketplace(&env);
 
     bind_marketplace(&env, &contract_id, &owner, &marketplace);
     env.as_contract(&contract_id, || {
@@ -259,7 +320,7 @@ fn test_sell_forwarded_fails_from_direct_external_call() {
 fn test_sell_forwarded_rejects_holder_auth_without_marketplace_caller() {
     let (env, contract_id, user, owner) = setup_env_with_owner();
     let client = MyTokenClient::new(&env, &contract_id);
-    let marketplace = Address::generate(&env);
+    let marketplace = register_contract_marketplace(&env);
 
     bind_marketplace(&env, &contract_id, &owner, &marketplace);
     env.as_contract(&contract_id, || {
@@ -283,6 +344,43 @@ fn test_sell_forwarded_rejects_holder_auth_without_marketplace_caller() {
 }
 
 #[test]
+fn test_sell_forwarded_updates_balance() {
+    let (env, contract_id, user, owner) = setup_env_with_owner();
+    let client = MyTokenClient::new(&env, &contract_id);
+    let marketplace = register_contract_marketplace(&env);
+
+    bind_marketplace(&env, &contract_id, &owner, &marketplace);
+    env.as_contract(&contract_id, || {
+        TokenBase::mint(&env, &user, 1000);
+    });
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &marketplace,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "sell_forwarded",
+                args: (&user, 400i128).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .sell_forwarded(&user, &400);
+
+    let expected = SellEvent {
+        seller: user.clone(),
+        amount: 400,
+    };
+    assert!(env
+        .events()
+        .all()
+        .events()
+        .contains(&expected.to_xdr(&env, &contract_id)));
+
+    assert_eq!(client.balance(&user), 600);
+    assert_eq!(client.total_supply(), 600);
+}
+
+#[test]
 fn test_mint_forwarded_fails_without_marketplace_binding() {
     let (env, contract_id, user) = setup_env();
     let client = MyTokenClient::new(&env, &contract_id);
@@ -298,7 +396,7 @@ fn test_mint_forwarded_fails_without_marketplace_binding() {
 fn test_mint_forwarded_fails_from_direct_external_call() {
     let (env, contract_id, user, owner) = setup_env_with_owner();
     let client = MyTokenClient::new(&env, &contract_id);
-    let marketplace = Address::generate(&env);
+    let marketplace = register_contract_marketplace(&env);
 
     bind_marketplace(&env, &contract_id, &owner, &marketplace);
 
@@ -313,7 +411,7 @@ fn test_mint_forwarded_fails_from_direct_external_call() {
 fn test_mint_forwarded_rejects_owner_auth_without_marketplace_caller() {
     let (env, contract_id, user, owner) = setup_env_with_owner();
     let client = MyTokenClient::new(&env, &contract_id);
-    let marketplace = Address::generate(&env);
+    let marketplace = register_contract_marketplace(&env);
 
     bind_marketplace(&env, &contract_id, &owner, &marketplace);
 
@@ -332,4 +430,61 @@ fn test_mint_forwarded_rejects_owner_auth_without_marketplace_caller() {
     assert!(result.is_err());
     assert_eq!(client.balance(&user), 0);
     assert_eq!(client.total_supply(), 0);
+}
+
+#[test]
+fn test_mint_forwarded_updates_balance() {
+    let (env, contract_id, user, owner) = setup_env_with_owner();
+    let client = MyTokenClient::new(&env, &contract_id);
+    let marketplace = register_contract_marketplace(&env);
+
+    bind_marketplace(&env, &contract_id, &owner, &marketplace);
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &marketplace,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "mint_forwarded",
+                args: (&user, 750i128).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .mint_forwarded(&user, &750);
+
+    let expected = MintEvent {
+        admin: owner,
+        to: user.clone(),
+        amount: 750,
+    };
+    assert!(env
+        .events()
+        .all()
+        .events()
+        .contains(&expected.to_xdr(&env, &contract_id)));
+
+    assert_eq!(client.balance(&user), 750);
+    assert_eq!(client.total_supply(), 750);
+}
+
+#[test]
+#[should_panic(expected = "amount must be positive")]
+fn test_mint_forwarded_rejects_non_positive_amount() {
+    let (env, contract_id, user, owner) = setup_env_with_owner();
+    let client = MyTokenClient::new(&env, &contract_id);
+    let marketplace = register_contract_marketplace(&env);
+
+    bind_marketplace(&env, &contract_id, &owner, &marketplace);
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &marketplace,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "mint_forwarded",
+                args: (&user, 0i128).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .mint_forwarded(&user, &0);
 }
