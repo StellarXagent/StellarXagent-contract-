@@ -421,6 +421,8 @@ impl PromptMarketplace {
     }
 
     fn authorize_token_call(e: &Env, token: Address, fn_name: Symbol, args: Vec<Val>) {
+        // The token requires this marketplace contract to authorize forwarded
+        // mint/burn calls; user/admin auth remains on the root marketplace call.
         let context = ContractContext {
             contract: token,
             fn_name,
