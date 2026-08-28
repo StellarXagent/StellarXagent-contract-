@@ -100,6 +100,8 @@ bash scripts/integration-test.sh
 | `test_buy_prompt_emits_event` | `buy_prompt` emite `PromptPurchased` con buyer/prompt_id/price correctos |
 | `test_remint_cross_contract` | E2E: `remint` (cross-contract real vía `invoke_contract`) → balance minteado |
 | `test_remint_emits_event` | `remint` emite `TokensReminted` con admin/to/amount correctos |
+| `test_unbound_marketplace_cannot_burn_forwarded_tokens` | Un marketplace no enlazado no puede quemar balances por forwarded burn |
+| `test_unbound_marketplace_cannot_mint_forwarded_tokens` | Un marketplace no enlazado no puede mintear por forwarded mint |
 
 ---
 
