@@ -3,6 +3,7 @@ use stellar_access::ownable;
 use stellar_tokens::fungible::Base;
 
 use crate::events::{BurnEvent, MintEvent, SellEvent, TransferEvent};
+use crate::storage::types::DataKey;
 
 pub struct TokenManager;
 
@@ -20,6 +21,23 @@ impl TokenManager {
             amount,
         }
         .publish(e);
+    }
+
+    pub fn set_marketplace(e: &Env, marketplace: &Address) {
+        if e.storage().instance().has(&DataKey::Marketplace) {
+            panic!("marketplace already set");
+        }
+
+        e.storage()
+            .instance()
+            .set(&DataKey::Marketplace, marketplace);
+    }
+
+    pub fn get_marketplace(e: &Env) -> Address {
+        e.storage()
+            .instance()
+            .get(&DataKey::Marketplace)
+            .expect("marketplace not set")
     }
 
     pub fn transfer(e: &Env, from: &Address, to: &MuxedAddress, amount: i128) {
@@ -60,20 +78,20 @@ impl TokenManager {
         .publish(e);
     }
 
-    /// Same as `sell` but WITHOUT `require_auth`. Call this when auth is
-    /// forwarded from a root invocation (e.g., a marketplace calling
-    /// `buy_prompt` which already called `buyer.require_auth()`).
-    ///
-    /// # Safety
-    ///
-    /// The caller MUST ensure the seller has authorized the action at the
-    /// root invocation level, otherwise tokens can be burned from any account.
     pub fn sell_forwarded(e: &Env, seller: &Address, amount: i128) {
+        Self::require_marketplace(e);
         Base::update(e, Some(seller), None, amount);
         SellEvent {
             seller: seller.clone(),
             amount,
         }
         .publish(e);
+    }
+
+    pub fn require_marketplace(e: &Env) {
+        let marketplace = Self::get_marketplace(e);
+        // Contract addresses can only satisfy this when they authorized the
+        // sub-invocation as the current contract.
+        marketplace.require_auth();
     }
 }

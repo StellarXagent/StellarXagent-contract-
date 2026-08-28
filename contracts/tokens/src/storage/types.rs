@@ -1,4 +1,4 @@
-use soroban_sdk::contracterror;
+use soroban_sdk::{contracterror, contracttype};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -18,4 +18,11 @@ pub enum AccError {
     NotFound = 12,
     InvalidAddress = 13,
     AllowanceExceeded = 14,
+    MarketplaceAlreadySet = 15,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DataKey {
+    Marketplace,
 }

@@ -40,6 +40,15 @@ check_balance() {
   fi
 }
 
+expect_failure() {
+  local label="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then
+    fail "$label: expected failure, command succeeded"
+  fi
+  pass "$label"
+}
+
 # ── Test Suite ──────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════"
@@ -48,6 +57,24 @@ echo "  Token ID : $TOKEN"
 echo "  Mkt  ID  : $MKT"
 echo "  Admin    : $ADMIN"
 echo "  Buyer    : $BUYER"
+echo ""
+echo "--- Step 0: Verify token marketplace binding ---"
+bound_mkt=$(invoke_ro "$TOKEN" get_marketplace | tr -d '"')
+if [[ "$bound_mkt" == "$MKT" ]]; then
+  pass "token marketplace binding = $bound_mkt"
+else
+  fail "token marketplace binding expected $MKT, got $bound_mkt"
+fi
+
+expect_failure "Direct mint_forwarded rejected" \
+  stellar contract invoke \
+    --id "$TOKEN" \
+    --source default \
+    --network "$NETWORK" \
+    -- \
+    mint_forwarded \
+    --to "$BUYER" \
+    --amount 1
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
@@ -72,7 +99,7 @@ echo "─── Step 3: Buyer buys prompt ───"
 send_yes "$MKT" buyer buy_prompt \
   --buyer "$BUYER" \
   --prompt_id "test-prompt-1"
-pass "Buy succeeded (auth forwarding works!)"
+pass "Buy succeeded (trusted marketplace burn works!)"
 echo ""
 
 # ── 4. Verify access + balance ──────────────────────────────────────────

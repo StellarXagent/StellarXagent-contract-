@@ -1,4 +1,5 @@
 use soroban_sdk::{
+    auth::{ContractContext, InvokerContractAuthEntry, SubContractInvocation},
     contract, contracterror, contractevent, contractimpl, vec, Address, BytesN, Env, IntoVal,
     String, Symbol, Val, Vec,
 };
@@ -256,13 +257,12 @@ impl PromptMarketplace {
             "already purchased"
         );
 
-        // Burn tokens from the buyer via `sell_forwarded` — this function
-        // trusts the root invocation's auth (buyer.require_auth() above)
-        // and does NOT call require_auth again, avoiding Soroban's
-        // "frame is already authorized" error.
+        // Burn tokens through the token's marketplace-only forwarded path.
+        // Buyer auth remains on this root call; marketplace auth is added below.
         let token = Self::get_token(e);
         let sell_sym = Symbol::new(e, "sell_forwarded");
         let sell_args: Vec<Val> = vec![&e, buyer.clone().into_val(e), prompt.price.into_val(e)];
+        Self::authorize_token_call(e, token.clone(), sell_sym.clone(), sell_args.clone());
         let _: () = e.invoke_contract(&token, &sell_sym, sell_args);
 
         // Mark the purchase so has_access returns true.
@@ -294,6 +294,7 @@ impl PromptMarketplace {
         let token = Self::get_token(e);
         let sell_sym = Symbol::new(e, "sell_forwarded");
         let sell_args: Vec<Val> = vec![&e, buyer.clone().into_val(e), prompt.price.into_val(e)];
+        Self::authorize_token_call(e, token.clone(), sell_sym.clone(), sell_args.clone());
         let _: () = e.invoke_contract(&token, &sell_sym, sell_args);
 
         e.storage().instance().set(&purchase_key, &true);
@@ -333,10 +334,7 @@ impl PromptMarketplace {
 
     /// Re-mint tokens back into circulation.
     /// The admin can put burned tokens back on the market.
-    /// Calls `mint_forwarded` (no auth check) because `enforce_admin` above
-    /// already verified the admin's authorization at the root level. Calling
-    /// the regular `mint` (with `only_owner`) would trigger a double
-    /// `require_auth` for the same address.
+    /// Calls `mint_forwarded` through the token's marketplace-only path.
     pub fn remint(e: &Env, to: Address, amount: i128) {
         Self::enforce_admin(e);
         assert!(amount > 0, "amount must be positive");
@@ -344,6 +342,7 @@ impl PromptMarketplace {
         let token = Self::get_token(e);
         let mint_sym = Symbol::new(e, "mint_forwarded");
         let mint_args: Vec<Val> = vec![&e, to.clone().into_val(e), amount.into_val(e)];
+        Self::authorize_token_call(e, token.clone(), mint_sym.clone(), mint_args.clone());
         let _: () = e.invoke_contract(&token, &mint_sym, mint_args);
 
         TokensReminted {
@@ -414,5 +413,20 @@ impl PromptMarketplace {
             .get(&DataKey::Admin)
             .expect("not initialized");
         admin.require_auth();
+    }
+
+    fn authorize_token_call(e: &Env, token: Address, fn_name: Symbol, args: Vec<Val>) {
+        // The token requires this marketplace contract to authorize forwarded
+        // mint/burn calls; user/admin auth remains on the root marketplace call.
+        let context = ContractContext {
+            contract: token,
+            fn_name,
+            args,
+        };
+        let invocation = SubContractInvocation {
+            context,
+            sub_invocations: Vec::new(e),
+        };
+        e.authorize_as_current_contract(vec![e, InvokerContractAuthEntry::Contract(invocation)]);
     }
 }
