@@ -257,10 +257,8 @@ impl PromptMarketplace {
             "already purchased"
         );
 
-        // Burn tokens from the buyer via `sell_forwarded` — this function
-        // trusts the root invocation's auth (buyer.require_auth() above)
-        // and does NOT call require_auth again, avoiding Soroban's
-        // "frame is already authorized" error.
+        // Burn tokens through the token's marketplace-only forwarded path.
+        // Buyer auth remains on this root call; marketplace auth is added below.
         let token = Self::get_token(e);
         let sell_sym = Symbol::new(e, "sell_forwarded");
         let sell_args: Vec<Val> = vec![&e, buyer.clone().into_val(e), prompt.price.into_val(e)];
@@ -336,10 +334,7 @@ impl PromptMarketplace {
 
     /// Re-mint tokens back into circulation.
     /// The admin can put burned tokens back on the market.
-    /// Calls `mint_forwarded` (no auth check) because `enforce_admin` above
-    /// already verified the admin's authorization at the root level. Calling
-    /// the regular `mint` (with `only_owner`) would trigger a double
-    /// `require_auth` for the same address.
+    /// Calls `mint_forwarded` through the token's marketplace-only path.
     pub fn remint(e: &Env, to: Address, amount: i128) {
         Self::enforce_admin(e);
         assert!(amount > 0, "amount must be positive");

@@ -654,8 +654,8 @@ fn test_buy_prompt_cross_contract() {
 
     // Real cross-contract call: marketplace.buy_prompt() → invoke_contract
     // → token.sell_forwarded(). Only the root require_auth (buyer, on
-    // buy_prompt) needs mocking — sell_forwarded forwards that auth rather
-    // than re-checking it.
+    // buy_prompt) needs mocking; the marketplace authorizes the token call
+    // as the current contract.
     mkt.mock_auths(&[MockAuth {
         address: &buyer,
         invoke: &MockAuthInvoke {
@@ -963,7 +963,7 @@ fn test_remint_cross_contract() {
 
     // Real cross-contract call: marketplace.remint() → invoke_contract →
     // token.mint_forwarded(). Only the root require_auth (admin, on
-    // remint) needs mocking.
+    // remint) needs mocking; the marketplace authorizes the token call.
     mkt.mock_auths(&[MockAuth {
         address: &admin,
         invoke: &MockAuthInvoke {
