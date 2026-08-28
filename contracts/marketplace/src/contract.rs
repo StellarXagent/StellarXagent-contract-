@@ -432,9 +432,6 @@ impl PromptMarketplace {
             context,
             sub_invocations: Vec::new(e),
         };
-        e.authorize_as_current_contract(vec![
-            e,
-            InvokerContractAuthEntry::Contract(invocation),
-        ]);
+        e.authorize_as_current_contract(vec![e, InvokerContractAuthEntry::Contract(invocation)]);
     }
 }
