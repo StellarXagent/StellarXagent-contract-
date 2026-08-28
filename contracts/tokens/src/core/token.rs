@@ -90,6 +90,8 @@ impl TokenManager {
 
     pub fn require_marketplace(e: &Env) {
         let marketplace = Self::get_marketplace(e);
+        // Contract addresses can only satisfy this when they authorized the
+        // sub-invocation as the current contract.
         marketplace.require_auth();
     }
 }
