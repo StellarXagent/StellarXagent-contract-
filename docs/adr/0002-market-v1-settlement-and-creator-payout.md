@@ -1,9 +1,9 @@
 # ADR 0002: Market V1 Settlement Asset and Creator Payout Model
 
 ## Status
-Proposed
+Approved
 
-Merging this ADR into `main` is the Market V1 economy approval gate. After merge, maintainers set this status to **Approved**. Smart-contracts [#25](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/25) must not implement settlement until that approval exists. This document does not authorize contract or backend code changes by itself.
+Maintainer merge of this ADR is the Market V1 economy approval gate, so the landed status is **Approved**. That unblocks Smart-contracts [#25](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/25). This document still does not contain contract or backend code; implementation remains #25.
 
 ## Context
 
@@ -28,6 +28,7 @@ Market V1 is approved as follows:
 | **Platform fee** | **1000 bps (10%)** of the on-chain price, integer math, remainder to the creator. |
 | **Custody of creator principal** | **None.** Creator funds never sit in a platform wallet. |
 | **Refunds / disputes** | Off-chain operator policy. On-chain purchase is final. Refunds are paid from the **platform treasury**, not clawed from the creator. |
+| **Platform treasury** | Constructor-pinned. No setter. A new treasury requires a new marketplace instance. |
 | **Legacy burn/remint** | **Not** Market V1. Existing records are not reinterpreted as paid USDC settlement. |
 
 Rejected for Market V1:
@@ -52,16 +53,23 @@ Testnet beta may keep using the current burn-path contracts for UX evidence. Tha
 
 ### Pinned USDC identity
 
-The marketplace constructor stores the **USDC SAC contract address**. That address must be derived from the canonical Circle asset, not from a lookalike code:
+The marketplace constructor stores the **USDC SAC `C...` address**. Pin code, issuer, **and** SAC id. Derive the SAC at deploy with `stellar contract id asset`; do not copy `C...` values from blogs alone.
 
-| Network | Asset | Issuer |
-| :--- | :--- | :--- |
-| Mainnet | `USDC` | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` |
-| Testnet | `USDC` | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
+| Network | Asset | Issuer | SAC (`C...`) |
+| :--- | :--- | :--- | :--- |
+| Mainnet | `USDC` | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` | `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75` |
+| Testnet | `USDC` | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` |
 
-Source: [Circle USDC contract addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses).
+```text
+stellar contract id asset --network mainnet --asset USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+stellar contract id asset --network testnet --asset USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+```
 
-Deploy verification must check `decimals() == 7` and `symbol` / issuer binding before the instance is used. The settlement asset cannot be retargeted after construct. A different asset requires a new marketplace instance and a new ADR if the unit of account changes.
+Issuer source: [Circle USDC contract addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses). SAC ids above are the currently well-known values; the deploy command is authoritative.
+
+Deploy verification must check that the constructor SAC equals the CLI-derived id, `decimals() == 7`, and symbol / issuer binding before the instance is used. The settlement asset cannot be retargeted after construct. A different asset requires a new marketplace instance and a new ADR if the unit of account changes.
+
+**Issuer risk:** Circle USDC has `auth_clawback_enabled = false`, so this ADR’s treasury-funded refund model does not collide with issuer clawback. Circle has `auth_revocable = true`, so Circle can freeze a buyer, creator, or treasury trustline. A frozen destination makes the atomic purchase fail; it is not a platform clawback.
 
 USDC on Stellar uses **7 decimals**. One display USDC = `10_000_000` stroops. All contract amounts are `i128` stroops.
 
@@ -74,7 +82,7 @@ USDC on Stellar uses **7 decimals**. One display USDC = `10_000_000` stroops. Al
 | Trust | Creators trust the fee formula and the listing `owner` address, not a payout queue. | Creators trust the platform to pay, reconcile, and remain solvent. |
 | Legal / compliance | Platform receives only the fee. It is not a custodian of creator principal. | Custody, reconciliation, and likely money-transmitter / escrow burden. |
 | Refund power | Platform cannot claw creator funds on-chain (Circle USDC clawback is not enabled for this issuer). Refunds come from treasury. | Platform can refund before payout, but then owns delayed-payout risk. |
-| Contract / audit work | Two SEP-41 transfers, fee math, stale-price guard, versioned events. | One transfer plus an off-chain ledger, payout tool, and evidence process. |
+| Contract / audit work | One or two SEP-41 transfers (skip amount `0`), fee math, stale-price and stale-split-auth guards, versioned events. | One transfer plus an off-chain ledger, payout tool, and evidence process. |
 | Speed to a curated launch | More Soroban work; still a single focused follow-up (#25). | Faster contract, slower and riskier ops/legal launch. |
 | Fit for Market V1 | **Approved.** | **Rejected** for V1. Revisit only with a new ADR if legal requires it. |
 
@@ -86,14 +94,15 @@ For both public `buy_prompt` and private `buy_private_prompt`:
 
 1. Buyer authorizes the purchase.
 2. Contract loads the listing, checks it is registered, and rejects replay (`AlreadyPurchased` / existing `PrivatePurchase`).
-3. Caller supplies `expected_price`. It must equal the stored price. Stale backend intents fail closed.
-4. Contract computes `fee_amount` and `creator_amount` (see §6). `fee_amount + creator_amount == price`.
+3. Caller supplies `expected_price`. It must equal the stored price. Stale backend intents fail closed. `expected_price` only protects the buyer **total**.
+4. Contract computes `fee_amount` and `creator_amount` (see §6). `fee_amount + creator_amount == price`. `creator_amount` must be `> 0`.
 5. Contract transfers USDC via the pinned SAC:
-   - `transfer(buyer → listing.owner, creator_amount)`
-   - `transfer(buyer → platform_treasury, fee_amount)`
-6. Only after both transfers succeed does the contract write the access grant and emit the versioned purchase event.
+   - always `transfer(buyer → listing.owner, creator_amount)`
+   - `transfer(buyer → platform_treasury, fee_amount)` **only when** `fee_amount > 0`
+   Skip a SEP-41 transfer when its amount is `0` (a zero-amount transfer often fails). Nested SAC auths must bind the exact `creator_amount` and, when the fee transfer runs, the exact `fee_amount`.
+6. Only after the required transfer(s) succeed does the contract write the access grant and emit the versioned purchase event.
 
-If any transfer fails (insufficient USDC, missing trustline, pause, wrong asset), the invocation rolls back: the buyer keeps the funds and gains no access.
+If any required transfer fails (insufficient USDC, missing or frozen trustline, pause, wrong asset, stale nested-auth amounts), the invocation rolls back: the buyer keeps the funds and gains no access.
 
 `MyToken::sell_forwarded` / `mint_forwarded` / `remint` are **out of the Market V1 purchase path**. They may remain on the legacy Testnet demo instance only.
 
@@ -112,9 +121,10 @@ Market V1 is non-custodial. The backend never holds buyer secret keys ([Backend 
    Mainnet — CEX withdrawal to Stellar USDC, Circle, or Stellar DEX/anchor.
 6. Open AgentVerse, authenticate (JWT bound to that wallet), browse curated PROMPT inventory.
 7. Backend creates an idempotent purchase intent bound to:
-   asset id, expected_price stroops, USDC SAC id, marketplace id,
-   network passphrase, entrypoint, arguments, expiry.
-8. Wallet simulates, then signs the Soroban invocation plus nested SAC transfer auths.
+   asset id, expected_price stroops, creator_amount, fee_amount, fee_bps,
+   USDC SAC id, marketplace id, network passphrase, entrypoint, arguments, expiry.
+8. Wallet simulates, then signs the Soroban invocation plus nested SAC transfer auths
+   bound to those exact split amounts (omit fee-transfer auth when fee_amount is 0).
 9. Buyer submits; backend confirms from executed ledger evidence, not from a hash alone.
 10. On success: USDC left the buyer, split hit creator + treasury, access grant exists,
     encrypted delivery may proceed (Backend ADR 003).
@@ -173,8 +183,11 @@ Invariants:
 - `fee_amount + creator_amount == price` for every successful purchase.
 - `fee_amount * 10_000 <= price * FEE_BPS` (platform never takes more than the advertised bps).
 - At `FEE_BPS = 1000` and `MIN_PRICE = 10_000_000`, `fee_amount >= 1_000_000` stroops (0.1 USDC). Dust below one stroop cannot exist at this minimum.
+- At `FEE_BPS = 0`, `fee_amount = 0` and `creator_amount = price`. #25 must **skip** the treasury transfer and still require `creator_amount > 0`. Do not call SEP-41 `transfer(..., 0)`.
 
-Admin may lower `FEE_BPS` (including to `0` for promotions) or raise it up to `MAX_FEE_BPS`. Each change emits an event with old/new bps. Listings do not snapshot fee bps; the live schedule applies at purchase. `expected_price` still guards the buyer’s total debit. If a later revision needs fee snapshotting per listing, that is a new ADR.
+Admin may lower `FEE_BPS` (including to `0` for promotions) or raise it up to `MAX_FEE_BPS`. Each change emits an event with old/new bps. Listings do not snapshot fee bps; the live schedule applies at purchase.
+
+`expected_price` only guards the buyer’s total debit. Nested SAC auths must bind the exact `creator_amount` and (when non-zero) `fee_amount`. If `FEE_BPS` changes between simulation/sign and execution in a way that alters the split, the nested auths no longer match and the purchase **fails closed**. It must not settle a different creator/platform cut. If a later revision needs fee snapshotting per listing, that is a new ADR.
 
 Prices are stored and charged in stroops. UI may display decimal USDC; clients must convert without floating-point drift (integer stroops on the wire).
 
@@ -185,8 +198,9 @@ States below are for **one purchase**. Delivery is off-chain and cannot move USD
 | State | Buyer USDC | Creator USDC | Platform treasury | Access grant |
 | :--- | :--- | :--- | :--- | :--- |
 | Intent created, not executed | Buyer | Unchanged | Unchanged | None |
-| Invocation fails (auth, balance, trustline, pause, stale price, replay) | Buyer (rollback) | Unchanged | Unchanged | None |
-| Invocation succeeds | Debited `price` | Credited `creator_amount` | Credited `fee_amount` | Written |
+| Invocation fails (auth, balance, trustline, freeze, pause, stale price, stale split auth, replay) | Buyer (rollback) | Unchanged | Unchanged | None |
+| Invocation succeeds (`fee_amount > 0`) | Debited `price` | Credited `creator_amount` | Credited `fee_amount` | Written |
+| Invocation succeeds (`FEE_BPS = 0`) | Debited `price` | Credited `price` | Unchanged | Written |
 | Off-chain delivery success | Unchanged from success | Unchanged | Unchanged | Remains |
 | Off-chain delivery failure / dispute | Unchanged from success | Unchanged from success | May later debit a refund | May be revoked by admin |
 | Operator refund (V1 policy) | Credited `price` from treasury (off-contract payment) | Keeps `creator_amount` | Debited refund; net fee may go negative for that SKU | Revoked when refund is issued |
@@ -194,7 +208,7 @@ States below are for **one purchase**. Delivery is off-chain and cannot move USD
 
 Rules:
 
-1. **No partial settlement.** There is no on-chain state where access exists without the split, or the split exists without access.
+1. **No partial settlement.** Access exists only after the required transfer(s) succeed. When `fee_amount = 0`, the treasury transfer is skipped by design; that is not a partial split.
 2. **Creator principal is final** after success. V1 has no creator clawback function.
 3. **Platform owns only fee USDC** plus whatever it later spends from treasury on refunds and operating costs.
 4. **Failed delivery does not unwind the atomic split.** The contract cannot observe Backend ADR 003. Delivery failure is an ops/treasury problem, not a second ledger.
@@ -227,9 +241,11 @@ On-chain USDC settlement is final. Digital prompt delivery is off-chain (ADR 000
 
 - Public: at most one grant per `(buyer, prompt_id)`.
 - Private: at most one grant per `(buyer, prompt_hash)` until admin revoke; a new purchase after revoke is a new payment (same as a new sale).
-- `expected_price` mismatch aborts.
+- `expected_price` mismatch aborts. That check does not bind the creator/platform cut.
 - Settlement SAC address is instance-fixed; wrong-asset invocations cannot succeed against this marketplace.
-- Nested buyer authorization must cover both SAC transfers. A replayed envelope against a grant that already exists fails `AlreadyPurchased` before a second debit.
+- Nested buyer authorization must bind the exact `creator_amount` and, when `fee_amount > 0`, the exact `fee_amount`. A live `FEE_BPS` change that would alter those amounts fails closed (stale nested auth), not with a different split.
+- When `fee_amount = 0`, there is no treasury transfer and therefore no nested fee-transfer auth.
+- A replayed envelope against a grant that already exists fails `AlreadyPurchased` before a second debit.
 
 ### Off-chain (backend)
 
@@ -263,8 +279,8 @@ Mismatches are incidents. Operators reconcile from events + RPC, not by editing 
 | Register / update / remove curated listings | Yes | `admin.require_auth()` |
 | Set `FEE_BPS` in `[0, MAX_FEE_BPS]` | Yes | Admin + event |
 | Pause / unpause purchases | Yes (marketplace-level) | Admin. USDC itself cannot be paused by AgentVerse. |
-| Change settlement SAC | **No** | New instance + new ADR if the asset changes |
-| Change `platform_treasury` | Discouraged; if exposed, admin + event, Mainnet via multisig | Must not silently retarget fee income |
+| Change settlement SAC | **No** | Constructor-pinned. New instance + new ADR if the asset changes |
+| Change `platform_treasury` | **No** | Constructor-pinned. No setter. A new treasury requires a new marketplace instance and deploy record, same class of risk as retargeting the settlement SAC. |
 | `remint` / burn-for-access | **Not on Market V1 instance** | Legacy demo only |
 | Upgrade WASM | Only if an explicit upgrade path is added later | Out of V1 settlement scope; #26 covers Mainnet controls |
 | Refund USDC | Off-contract treasury payment | Treasury signers |
@@ -280,7 +296,7 @@ Roles below are the Market V1 binding. Empty legal ownership **blocks Mainnet**,
 | :--- | :--- | :--- |
 | Economy policy (asset, fee, payout model) | **Joaquín Pappa (`@Joaco2603`)** as Stellar-AgentVerse product maintainer, with the remaining **Smart-contracts maintainers** on merge | Author of #24, #25, and Backend #18. |
 | Marketplace `admin` (pause, listings, fee bps, revokes) | **Stellar-AgentVerse maintainers** via the on-chain admin account | Mainnet: multisig; signers named in the deploy summary. |
-| Platform treasury (fee income, refund payments, on-ramp losses) | **Stellar-AgentVerse maintainers** via the `platform_treasury` account | Distinct from admin when operationally possible. |
+| Platform treasury (fee income, refund payments, on-ramp losses) | **Stellar-AgentVerse maintainers** via the constructor-pinned `platform_treasury` account | Distinct from admin when operationally possible. No on-chain retarget. |
 | Creator-principal custody | **None** | Atomic split. If a future ADR chooses Option B, this row must become a named custodian before any collection. |
 | Ledger reconciliation and support | **Stellar-AgentVerse maintainers** until #26 names an ops owner | Use versioned events; no silent DB edits. |
 | Legal, tax, consumer-refund law, licensing | **Unassigned until Mainnet** | Must be a named human in [#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26) / Backend #18 before real-value launch. This ADR does not appoint counsel. |
@@ -302,7 +318,7 @@ Changing a named owner does not require a new economic model, but it does requir
 
 Rules:
 
-1. Deploy a **new** `PromptMarketplace` instance whose constructor token is the USDC SAC, plus `platform_treasury` and `FEE_BPS`. Do not reuse the burn-era contract id as a live Market V1 catalog.
+1. Deploy a **new** `PromptMarketplace` instance whose constructor pins the USDC SAC, `platform_treasury`, and initial `FEE_BPS`. There is no treasury or SAC setter. Do not reuse the burn-era contract id as a live Market V1 catalog.
 2. Do **not** copy `has_access` / `has_private_access` from the burn-era instance. Those grants were not paid in USDC.
 3. Do **not** treat a historical `PromptPurchased` burn event as a creator payable or platform receivable.
 4. Leave the burn-era Testnet contracts up only if labeled demo/non-value. README deploy ids that point at burn-era WASM stay historical until operators replace them.
@@ -322,19 +338,19 @@ Atomic USDC split does not restore unlinkability. Relayers/ZK remain out of scop
 
 ## 14. Follow-up implementation and audit boundaries
 
-Implementation is **Smart-contracts #25** only after this ADR is Approved. Suggested review slices:
+Implementation is **Smart-contracts #25**, unblocked when this Approved ADR lands. Suggested review slices:
 
 | Slice | In scope | Out of scope |
 | :--- | :--- | :--- |
-| **A. Settlement core** | Replace burn with two SAC `transfer`s; `expected_price`; `MIN_PRICE`; fee math; constructor fields (`usdc_sac`, `platform_treasury`, `fee_bps`); marketplace pause | New token contract, DEX, on-ramp, AVT migration mint |
+| **A. Settlement core** | SAC `transfer`s; skip any transfer whose amount is `0`; `expected_price`; `MIN_PRICE`; fee math; constructor fields (`usdc_sac`, `platform_treasury`, `fee_bps`) with **no** SAC or treasury setter; marketplace pause | New token contract, DEX, on-ramp, AVT migration mint, treasury retarget |
 | **B. Events / accounting** | Versioned `*_v2` purchase events with split fields; fee-update event | Backend indexer (separate Backend PR) |
-| **C. Auth** | Nested buyer auth covering both transfers; Testnet integration with real signatures (Freighter/CLI). Document the Soroban v25 mock-auth limitation already noted in README | Relayers, sponsored fees, smart-wallet passkeys |
+| **C. Auth** | Nested buyer auth binding exact `creator_amount` / `fee_amount`; Testnet integration with real signatures (Freighter/CLI). Document the Soroban v25 mock-auth limitation already noted in README | Relayers, sponsored fees, smart-wallet passkeys |
 | **D. Legacy isolation** | Market V1 instance has no `remint` purchase coupling; tests prove burn-era ids are unused | Deleting `MyToken` from the repo |
-| **E. Evidence** | Unit + invariant tests (`fee+creator==price`, rollback on failed transfer, replay, stale price, pause); Testnet script; `simulateTransaction` resource note | Full Mainnet audit package (#26) |
+| **E. Evidence** | Unit + invariant tests (`fee+creator==price`, skip `transfer(..., 0)`, rollback on failed transfer, replay, stale price, stale nested split auth, pause, frozen destination); Testnet script; `simulateTransaction` resource note | Full Mainnet audit package (#26) |
 
 #25 must not add escrow, clawback, on-chain refunds, or a second settlement asset. Those expand the audit surface past a focused review.
 
-Client/backend payload changes that #25 should document (not implement in this repo unless already present): nested auth entries, `expected_price`, USDC SAC id, `settlement_model` version, stop sending burn-path XDR for Market V1 inventory.
+Client/backend payload changes that #25 should document (not implement in this repo unless already present): nested auth entries bound to exact split amounts, skip zero-amount transfers, `expected_price`, constructor-pinned USDC SAC id and `platform_treasury`, `settlement_model` version, stop sending burn-path XDR for Market V1 inventory.
 
 ## Non-goals
 
@@ -353,7 +369,7 @@ Client/backend payload changes that #25 should document (not implement in this r
 - Support refunds are a treasury expense; they cannot silently debit creators.
 - `MyToken` remains a Testnet demonstration token, not a currency.
 - ADR 0001 private purchases use the same split; privacy guarantees do not change except for the extra transfer metadata above.
-- #25 becomes unblocked only after this ADR is Approved.
+- #25 is unblocked by this Approved ADR.
 
 ## Acceptance criteria map
 
