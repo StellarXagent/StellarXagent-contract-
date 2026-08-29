@@ -56,8 +56,7 @@ impl MyToken {
     /// Marketplace-only mint path for cross-contract remint flows.
     #[when_not_paused]
     pub fn mint_forwarded(e: &Env, to: Address, amount: i128) {
-        TokenManager::require_marketplace(e);
-        TokenManager::mint(e, &to, amount);
+        TokenManager::mint_forwarded(e, &to, amount);
     }
 }
 

@@ -75,6 +75,16 @@ expect_failure "Direct mint_forwarded rejected" \
     mint_forwarded \
     --to "$BUYER" \
     --amount 1
+
+expect_failure "Direct sell_forwarded rejected" \
+  stellar contract invoke \
+    --id "$TOKEN" \
+    --source default \
+    --network "$NETWORK" \
+    -- \
+    sell_forwarded \
+    --seller "$BUYER" \
+    --amount 1
 echo "═══════════════════════════════════════════════════════"
 echo ""
 
