@@ -44,6 +44,18 @@ deploy-mainnet:
 verify-mainnet:
 	bash scripts/verify-mainnet.sh
 
+# Fresh Testnet dry run for the Mainnet release gate (adversarial scenarios,
+# resource budgets, pause/recovery, reconciliation). See
+# docs/security/MAINNET_RELEASE_CHECKLIST.md.
+# Requires DRYRUN_ADMIN_SOURCE, DRYRUN_ADMIN_ADDR, DRYRUN_BUYER_SOURCE, DRYRUN_BUYER_ADDR
+testnet-dry-run:
+	bash scripts/testnet-dry-run.sh
+
+# Capped, real-value Mainnet canary purchase. Requires explicit CANARY_CONFIRM.
+# See scripts/canary-mainnet.sh for required/optional variables.
+canary-mainnet:
+	bash scripts/canary-mainnet.sh
+
 fmt:
 	cargo fmt --all
 
