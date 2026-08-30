@@ -272,6 +272,28 @@ La v1 actual soporta cuentas multisig configuradas en Stellar CLI (el CLI pedir�
 - Flujo de firmas separadas: el deployer crea la transacción, múltiples signers la firman off-line, y alguien la publica.
 - DAuthorization: delegar privilegios admin a un módulo de gobernanza on-chain.
 
+### Mainnet Release Gate
+
+Antes de ejecutar `deploy-mainnet.sh` con fondos reales, este release está
+sujeto al gate de [#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26).
+El checklist maestro, con estado de cada criterio de aceptación, vive en
+[`docs/security/MAINNET_RELEASE_CHECKLIST.md`](docs/security/MAINNET_RELEASE_CHECKLIST.md).
+
+Documentos y scripts del paquete de release:
+
+| Entregable | Qué cubre |
+|---|---|
+| [`docs/security/MAINNET_RELEASE_CHECKLIST.md`](docs/security/MAINNET_RELEASE_CHECKLIST.md) | Checklist maestro: mapea cada bullet de la solución propuesta y cada criterio de aceptación del #26 a su estado real. |
+| [`docs/security/MAINNET_CUSTODY_POLICY.md`](docs/security/MAINNET_CUSTODY_POLICY.md) | Separación deployer/admin, política de multisig/hardware wallet, rotación ante compromiso. |
+| [`docs/security/AUDIT_PROCESS.md`](docs/security/AUDIT_PROCESS.md) | Proceso de revisión de seguridad independiente, severidades, SLA, plantilla de sign-off (vacía hasta que ocurra una revisión real). |
+| [`docs/operations/MONITORING_AND_INCIDENT_RESPONSE.md`](docs/operations/MONITORING_AND_INCIDENT_RESPONSE.md) | Señales de monitoreo, niveles de incidente, criterios de pausa, rollback/migración, dueños nombrados. |
+| `scripts/testnet-dry-run.sh` (`make testnet-dry-run`) | Deploy fresco en Testnet + escenarios adversariales, presupuesto de recursos, drill de pausa/recuperación y reconciliación. |
+| `scripts/canary-mainnet.sh` (`make canary-mainnet`) | Compra canary capada y con confirmación explícita contra Mainnet ya deployado y re-verificado; valida settlement, entrega y reconciliación. |
+
+Esta issue depende de [#9](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/9)
+(política de procedencia de dependencias) — ese trabajo se resuelve en #9, no
+se duplica aquí.
+
 ### Invocar
 
 Los IDs de abajo son las instancias viejas de Testnet (sin `set_marketplace`). Sirven solo para lecturas de metadata, no para el flujo de compra actual.
