@@ -1,7 +1,7 @@
 # Independent Security Review Process
 
 Defines how the independent review required by
-[#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26) is
+[#26](https://github.com/Stellargent/Smart-contracts/issues/26) is
 scoped, run, and signed off. **No review has happened yet** — the sign-off
 record at the bottom is intentionally blank. This document is the process
 and the template, not a claim that an audit occurred.
@@ -14,7 +14,7 @@ and the template, not a claim that an audit occurred.
   `scripts/canary-mainnet.sh` — these hold and move real funds and real
   admin authority, so they are in scope, not just the contracts.
 - The dependency provenance policy delivered by
-  [#9](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/9),
+  [#9](https://github.com/Stellargent/Smart-contracts/issues/9),
   once it exists.
 - Out of scope: Backend/UI staging (tracked separately; see #26 non-goals).
 

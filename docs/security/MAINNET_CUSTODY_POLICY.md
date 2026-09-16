@@ -2,7 +2,7 @@
 
 Governs who can build, deploy, and administer the Mainnet `MyToken` /
 `PromptMarketplace` contracts. Required by
-[#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26).
+[#26](https://github.com/Stellargent/Smart-contracts/issues/26).
 
 ## Two identities, never one
 

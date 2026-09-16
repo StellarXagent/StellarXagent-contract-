@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AgentVerse — Mainnet Deployment Script
+# Stellargent — Mainnet Deployment Script
 # =============================================================================
 # This script builds both Soroban contracts in release mode, computes and
 # verifies WASM hashes, deploys them to Stellar mainnet, initializes them,
@@ -20,7 +20,7 @@
 #   MAINNET_ADMIN_ADDR        Mainnet public address that will own the contracts
 #
 # Optional environment variables:
-#   MAINNET_TOKEN_NAME        Token name  (default: "AgentVerse Token")
+#   MAINNET_TOKEN_NAME        Token name  (default: "Stellargent Token")
 #   MAINNET_TOKEN_SYMBOL      Token symbol (default: "AVT")
 #   MAINNET_TOKEN_DECIMALS    Token decimals (default: 7)
 #   MAINNET_DEPLOY_OUT_DIR    Directory for deploy artifacts (default: ./deploy-artifacts)
@@ -49,7 +49,7 @@ RELEASE_DIR="target/${TARGET}/release"
 TOKEN_WASM_NAME="my_token.wasm"
 MKT_WASM_NAME="prompt_marketplace.wasm"
 
-TOKEN_NAME="${MAINNET_TOKEN_NAME:-AgentVerse Token}"
+TOKEN_NAME="${MAINNET_TOKEN_NAME:-Stellargent Token}"
 TOKEN_SYMBOL="${MAINNET_TOKEN_SYMBOL:-AVT}"
 TOKEN_DECIMALS="${MAINNET_TOKEN_DECIMALS:-7}"
 OUT_DIR="${MAINNET_DEPLOY_OUT_DIR:-./deploy-artifacts}"
@@ -124,7 +124,7 @@ stellar_invoke() {
 
 # ── Pre-flight checks ───────────────────────────────────────────────────────
 
-log_section "AgentVerse Mainnet Deploy"
+log_section "Stellargent Mainnet Deploy"
 log_info "Network: ${NETWORK}"
 log_info "Timestamp: ${TIMESTAMP}"
 
@@ -376,4 +376,4 @@ Marketplace Hash: ${MKT_WASM_HASH}
 Artifacts:      ${OUT_DIR}
 EOF
 
-log_ok "AgentVerse mainnet deployment completed successfully"
+log_ok "Stellargent mainnet deployment completed successfully"

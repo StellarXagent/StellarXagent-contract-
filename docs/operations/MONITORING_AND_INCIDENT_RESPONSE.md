@@ -1,7 +1,7 @@
 # Mainnet Monitoring & Incident Response
 
 Operational runbook for the deployed `MyToken` / `PromptMarketplace` pair,
-required by [#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26).
+required by [#26](https://github.com/Stellargent/Smart-contracts/issues/26).
 
 ## Monitoring signals
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AgentVerse — Mainnet Canary Purchase
+# Stellargent — Mainnet Canary Purchase
 # =============================================================================
 # Runs ONE small, capped, REAL-VALUE purchase against already-deployed and
 # verified Mainnet contracts to prove that settlement, delivery (has_access),
 # and payment (burn) accounting behave as approved, before opening the
 # marketplace to the public. Required by
-# https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26.
+# https://github.com/Stellargent/Smart-contracts/issues/26.
 #
 # SECURITY NOTICE — THIS SCRIPT MOVES REAL FUNDS:
 #   - It refuses to run above CANARY_MAX_PRICE (hard cap).

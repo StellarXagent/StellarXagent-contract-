@@ -2,7 +2,7 @@
 
 Tracks readiness for the first real-value Mainnet deployment of `MyToken` +
 `PromptMarketplace` (Market V1). This is the release gate for
-[#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26) and
+[#26](https://github.com/Stellargent/Smart-contracts/issues/26) and
 must be fully green — no unresolved `[ ]` items — before running
 `scripts/deploy-mainnet.sh` against `--network mainnet` with real funds.
 
@@ -20,7 +20,7 @@ implicitly.
 ## 1. Dependency provenance (blocking prerequisite)
 
 - [ ] [#9 — Security: define dependency provenance and reproducible audit
-  policy](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/9) is
+  policy](https://github.com/Stellargent/Smart-contracts/issues/9) is
   closed and the locked dependency graph is reproducible.
 
 This item is **out of scope for this PR** — it is tracked and resolved in

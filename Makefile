@@ -25,7 +25,7 @@ deploy: build
 deploy-show: deploy
 	@echo "Deployed. Check output above for CONTRACT_ID"
 
-# Mainnet deployment for AgentVerse (MyToken + PromptMarketplace)
+# Mainnet deployment for Stellargent (MyToken + PromptMarketplace)
 # Requires MAINNET_DEPLOYER_SOURCE, MAINNET_ADMIN_SOURCE, MAINNET_ADMIN_ADDR
 # Usage:
 #   MAINNET_DEPLOYER_SOURCE=deployer \

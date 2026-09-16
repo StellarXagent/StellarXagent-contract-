@@ -1,6 +1,6 @@
-# Soroban Smart Contracts — AgentVerseStellar
+# Soroban Smart Contracts — Stellargent
 
-[![Smart Contracts CI](https://github.com/Stellar-AgentVerse/Smart-contracts/actions/workflows/smart-contracts-ci.yml/badge.svg)](https://github.com/Stellar-AgentVerse/Smart-contracts/actions/workflows/smart-contracts-ci.yml)
+[![Smart Contracts CI](https://github.com/Stellargent/Smart-contracts/actions/workflows/smart-contracts-ci.yml/badge.svg)](https://github.com/Stellargent/Smart-contracts/actions/workflows/smart-contracts-ci.yml)
 
 Dos contratos Soroban desplegados en **Testnet**, conectados entre sí:
 
@@ -214,7 +214,7 @@ Variables opcionales:
 
 | Variable | Descripción | Default |
 |---|---|---|
-| `MAINNET_TOKEN_NAME` | Nombre del token | `AgentVerse Token` |
+| `MAINNET_TOKEN_NAME` | Nombre del token | `Stellargent Token` |
 | `MAINNET_TOKEN_SYMBOL` | Símbolo del token | `AVT` |
 | `MAINNET_TOKEN_DECIMALS` | Decimales | `7` |
 | `MAINNET_DEPLOY_OUT_DIR` | Carpeta de artefactos | `./deploy-artifacts` |
@@ -275,7 +275,7 @@ La v1 actual soporta cuentas multisig configuradas en Stellar CLI (el CLI pedir�
 ### Mainnet Release Gate
 
 Antes de ejecutar `deploy-mainnet.sh` con fondos reales, este release está
-sujeto al gate de [#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26).
+sujeto al gate de [#26](https://github.com/Stellargent/Smart-contracts/issues/26).
 El checklist maestro, con estado de cada criterio de aceptación, vive en
 [`docs/security/MAINNET_RELEASE_CHECKLIST.md`](docs/security/MAINNET_RELEASE_CHECKLIST.md).
 
@@ -290,7 +290,7 @@ Documentos y scripts del paquete de release:
 | `scripts/testnet-dry-run.sh` (`make testnet-dry-run`) | Deploy fresco en Testnet + escenarios adversariales, presupuesto de recursos, drill de pausa/recuperación y reconciliación. |
 | `scripts/canary-mainnet.sh` (`make canary-mainnet`) | Compra canary capada y con confirmación explícita contra Mainnet ya deployado y re-verificado; valida settlement, entrega y reconciliación. |
 
-Esta issue depende de [#9](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/9)
+Esta issue depende de [#9](https://github.com/Stellargent/Smart-contracts/issues/9)
 (política de procedencia de dependencias) — ese trabajo se resuelve en #9, no
 se duplica aquí.
 

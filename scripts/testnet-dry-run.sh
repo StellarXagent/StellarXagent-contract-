@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AgentVerse — Testnet Dry-Run for the Mainnet Release Gate
+# Stellargent — Testnet Dry-Run for the Mainnet Release Gate
 # =============================================================================
 # Deploys a FRESH MyToken + PromptMarketplace pair on Testnet from the
 # current release build, then exercises the checks required before promoting
@@ -45,7 +45,7 @@ NETWORK="testnet"
 TARGET="wasm32v1-none"
 RELEASE_DIR="target/${TARGET}/release"
 
-TOKEN_NAME="${DRYRUN_TOKEN_NAME:-AgentVerse Dry-Run Token}"
+TOKEN_NAME="${DRYRUN_TOKEN_NAME:-Stellargent Dry-Run Token}"
 TOKEN_SYMBOL="${DRYRUN_TOKEN_SYMBOL:-AVTD}"
 TOKEN_DECIMALS="${DRYRUN_TOKEN_DECIMALS:-7}"
 OUT_DIR="${DRYRUN_OUT_DIR:-./deploy-artifacts}"

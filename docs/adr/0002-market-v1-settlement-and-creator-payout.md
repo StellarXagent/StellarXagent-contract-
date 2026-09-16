@@ -3,17 +3,17 @@
 ## Status
 Approved
 
-Maintainer merge of this ADR is the Market V1 economy approval gate, so the landed status is **Approved**. That unblocks Smart-contracts [#25](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/25). This document still does not contain contract or backend code; implementation remains #25.
+Maintainer merge of this ADR is the Market V1 economy approval gate, so the landed status is **Approved**. That unblocks Smart-contracts [#25](https://github.com/Stellargent/Smart-contracts/issues/25). This document still does not contain contract or backend code; implementation remains #25.
 
 ## Context
 
-AgentVerse currently demonstrates purchase execution, not a marketplace economy.
+Stellargent currently demonstrates purchase execution, not a marketplace economy.
 
-`PromptMarketplace::buy_prompt` and `buy_private_prompt` debit the buyer by burning `MyToken` (`sell_forwarded`). The stored prompt `owner` is never paid. The platform never collects a fee. Circulation is restored only if an admin later calls `remint`. Users have no production path to acquire that custom token. Backend wallet credits and simulated XLM balances are a separate ledger ([Backend #16](https://github.com/Stellar-AgentVerse/Backend/issues/16)) and must not be treated as settlement.
+`PromptMarketplace::buy_prompt` and `buy_private_prompt` debit the buyer by burning `MyToken` (`sell_forwarded`). The stored prompt `owner` is never paid. The platform never collects a fee. Circulation is restored only if an admin later calls `remint`. Users have no production path to acquire that custom token. Backend wallet credits and simulated XLM balances are a separate ledger ([Backend #16](https://github.com/Stellargent/Backend/issues/16)) and must not be treated as settlement.
 
-ADR [0001](./0001-private-access-threat-model.md) defines private-access commitments and residual metadata leaks. It does **not** define who is paid, in which asset, or who owns funds after a failed delivery. Backend [ADR 003](https://github.com/Stellar-AgentVerse/Backend/blob/main/docs/adr/003-encrypted-prompt-delivery.md) defines encrypted delivery. It also does not define settlement.
+ADR [0001](./0001-private-access-threat-model.md) defines private-access commitments and residual metadata leaks. It does **not** define who is paid, in which asset, or who owns funds after a failed delivery. Backend [ADR 003](https://github.com/Stellargent/Backend/blob/main/docs/adr/003-encrypted-prompt-delivery.md) defines encrypted delivery. It also does not define settlement.
 
-Backend [#18](https://github.com/Stellar-AgentVerse/Backend/issues/18) splits the product into a Testnet UX beta and a later **Market V1** that may move real value only after this ADR, [#25](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/25), security, and legal gates. Market V1 inventory is one product type: curated `PROMPT`.
+Backend [#18](https://github.com/Stellargent/Backend/issues/18) splits the product into a Testnet UX beta and a later **Market V1** that may move real value only after this ADR, [#25](https://github.com/Stellargent/Smart-contracts/issues/25), security, and legal gates. Market V1 inventory is one product type: curated `PROMPT`.
 
 This ADR chooses the narrow Market V1 economic model so implementation and audit work stay small and explicit.
 
@@ -48,7 +48,7 @@ Testnet beta may keep using the current burn-path contracts for UX evidence. Tha
 | Wallet / ecosystem support | Custom contract; limited wallet recognition. | Universal, no trustline. | Native Stellar asset; Freighter and major wallets already support it. |
 | Accounting / tax | Would require a second FX conversion. | Requires FX at each payout. | USD units match invoices and fee income. |
 | Contract work | Already wired, but the burn path destroys value. | SAC `native` is simple (no trustline). | SAC `transfer`; G-address buyers/creators need a USDC trustline. |
-| Trust | Platform is the issuer. Supply is an admin power. | Protocol native. | Circle issuance and reserves; issuer is not AgentVerse. |
+| Trust | Platform is the issuer. Supply is an admin power. | Protocol native. | Circle issuance and reserves; issuer is not Stellargent. |
 | Fit for Market V1 | **No** — this is the problem statement. | **No** — funding exists, but the unit of account is wrong. | **Yes** — real-value unit plus an existing funding path. |
 
 ### Pinned USDC identity
@@ -108,7 +108,7 @@ If any required transfer fails (insufficient USDC, missing or frozen trustline, 
 
 ## 4. Buyer onboarding and funding (end to end)
 
-Market V1 is non-custodial. The backend never holds buyer secret keys ([Backend #9](https://github.com/Stellar-AgentVerse/Backend/issues/9)).
+Market V1 is non-custodial. The backend never holds buyer secret keys ([Backend #9](https://github.com/Stellargent/Backend/issues/9)).
 
 ```
 1. Install Freighter (or Stellar Wallets Kit).
@@ -119,7 +119,7 @@ Market V1 is non-custodial. The backend never holds buyer secret keys ([Backend 
 5. Acquire USDC:
    Testnet — Circle Testnet faucet / documented test issuer.
    Mainnet — CEX withdrawal to Stellar USDC, Circle, or Stellar DEX/anchor.
-6. Open AgentVerse, authenticate (JWT bound to that wallet), browse curated PROMPT inventory.
+6. Open Stellargent, authenticate (JWT bound to that wallet), browse curated PROMPT inventory.
 7. Backend creates an idempotent purchase intent bound to:
    asset id, expected_price stroops, creator_amount, fee_amount, fee_bps,
    USDC SAC id, marketplace id, network passphrase, entrypoint, arguments, expiry.
@@ -148,7 +148,7 @@ Market V1 onboarding is curated and operator-assisted (Backend #18). There is no
 4. On each successful purchase, `creator_amount` USDC arrives in that address in the
    same transaction as the buyer's debit. No payout ticket, no schedule, no clawback.
 5. Withdrawal is ordinary Stellar USDC movement from the creator's wallet:
-   spend on-network, DEX, or CEX/off-ramp. AgentVerse does not run a withdrawal queue.
+   spend on-network, DEX, or CEX/off-ramp. Stellargent does not run a withdrawal queue.
 6. Support can show the versioned purchase event as proof of payment. It cannot
    re-route a completed split.
 ```
@@ -278,7 +278,7 @@ Mismatches are incidents. Operators reconcile from events + RPC, not by editing 
 | :--- | :--- | :--- |
 | Register / update / remove curated listings | Yes | `admin.require_auth()` |
 | Set `FEE_BPS` in `[0, MAX_FEE_BPS]` | Yes | Admin + event |
-| Pause / unpause purchases | Yes (marketplace-level) | Admin. USDC itself cannot be paused by AgentVerse. |
+| Pause / unpause purchases | Yes (marketplace-level) | Admin. USDC itself cannot be paused by Stellargent. |
 | Change settlement SAC | **No** | Constructor-pinned. New instance + new ADR if the asset changes |
 | Change `platform_treasury` | **No** | Constructor-pinned. No setter. A new treasury requires a new marketplace instance and deploy record, same class of risk as retargeting the settlement SAC. |
 | `remint` / burn-for-access | **Not on Market V1 instance** | Legacy demo only |
@@ -294,12 +294,12 @@ Roles below are the Market V1 binding. Empty legal ownership **blocks Mainnet**,
 
 | Domain | Named owner | Notes |
 | :--- | :--- | :--- |
-| Economy policy (asset, fee, payout model) | **Joaquín Pappa (`@Joaco2603`)** as Stellar-AgentVerse product maintainer, with the remaining **Smart-contracts maintainers** on merge | Author of #24, #25, and Backend #18. |
-| Marketplace `admin` (pause, listings, fee bps, revokes) | **Stellar-AgentVerse maintainers** via the on-chain admin account | Mainnet: multisig; signers named in the deploy summary. |
-| Platform treasury (fee income, refund payments, on-ramp losses) | **Stellar-AgentVerse maintainers** via the constructor-pinned `platform_treasury` account | Distinct from admin when operationally possible. No on-chain retarget. |
+| Economy policy (asset, fee, payout model) | **Joaquín Pappa (`@Joaco2603`)** as Stellargent product maintainer, with the remaining **Smart-contracts maintainers** on merge | Author of #24, #25, and Backend #18. |
+| Marketplace `admin` (pause, listings, fee bps, revokes) | **Stellargent maintainers** via the on-chain admin account | Mainnet: multisig; signers named in the deploy summary. |
+| Platform treasury (fee income, refund payments, on-ramp losses) | **Stellargent maintainers** via the constructor-pinned `platform_treasury` account | Distinct from admin when operationally possible. No on-chain retarget. |
 | Creator-principal custody | **None** | Atomic split. If a future ADR chooses Option B, this row must become a named custodian before any collection. |
-| Ledger reconciliation and support | **Stellar-AgentVerse maintainers** until #26 names an ops owner | Use versioned events; no silent DB edits. |
-| Legal, tax, consumer-refund law, licensing | **Unassigned until Mainnet** | Must be a named human in [#26](https://github.com/Stellar-AgentVerse/Smart-contracts/issues/26) / Backend #18 before real-value launch. This ADR does not appoint counsel. |
+| Ledger reconciliation and support | **Stellargent maintainers** until #26 names an ops owner | Use versioned events; no silent DB edits. |
+| Legal, tax, consumer-refund law, licensing | **Unassigned until Mainnet** | Must be a named human in [#26](https://github.com/Stellargent/Smart-contracts/issues/26) / Backend #18 before real-value launch. This ADR does not appoint counsel. |
 | Tax reporting for creators | **Each creator** for their USDC income; platform files only what counsel requires | Communicate in creator onboarding. |
 
 Changing a named owner does not require a new economic model, but it does require an update to this table or the Mainnet deploy record.

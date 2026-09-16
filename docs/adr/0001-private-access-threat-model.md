@@ -4,7 +4,7 @@
 Approved and Implemented
 
 ## Context
-Before implementing a private-access registry in the Soroban smart contracts for the Stellar-AgentVerse platform, it is crucial to strictly define the security architecture and evaluate trade-offs. The current system handles prompt sales via contracts (`PromptMarketplace`, `MyToken`). We need to guarantee the privacy of the prompts accessed by authorized buyers, minimizing exposure on the blockchain. Since this analysis focuses on the **Smart Contracts** layer, we evaluate how to design the contracts to support secure private access without leaking sensitive information on the public Stellar network.
+Before implementing a private-access registry in the Soroban smart contracts for the Stellargent platform, it is crucial to strictly define the security architecture and evaluate trade-offs. The current system handles prompt sales via contracts (`PromptMarketplace`, `MyToken`). We need to guarantee the privacy of the prompts accessed by authorized buyers, minimizing exposure on the blockchain. Since this analysis focuses on the **Smart Contracts** layer, we evaluate how to design the contracts to support secure private access without leaking sensitive information on the public Stellar network.
 
 ## 1. Threat Model
 

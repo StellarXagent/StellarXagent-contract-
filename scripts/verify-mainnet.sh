@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AgentVerse — Mainnet Verification Script
+# Stellargent — Mainnet Verification Script
 # =============================================================================
 # Independently verifies deployed mainnet contracts against locally built WASM
 # artifacts and expected configuration. Use this after deployment, in CI, or
@@ -12,7 +12,7 @@
 #   MAINNET_ADMIN_ADDR          Expected admin/owner address
 #
 # Optional environment variables:
-#   MAINNET_TOKEN_NAME          Expected token name (default: "AgentVerse Token")
+#   MAINNET_TOKEN_NAME          Expected token name (default: "Stellargent Token")
 #   MAINNET_TOKEN_SYMBOL        Expected token symbol (default: "AVT")
 #   MAINNET_TOKEN_DECIMALS      Expected token decimals (default: 7)
 #   MAINNET_TOKEN_WASM          Path to local MyToken wasm (default: target/wasm32v1-none/release/my_token.wasm)
@@ -42,7 +42,7 @@ TOKEN_ID="${MAINNET_TOKEN_ID:-}"
 MKT_ID="${MAINNET_MARKETPLACE_ID:-}"
 ADMIN_ADDR="${MAINNET_ADMIN_ADDR:-}"
 
-TOKEN_NAME="${MAINNET_TOKEN_NAME:-AgentVerse Token}"
+TOKEN_NAME="${MAINNET_TOKEN_NAME:-Stellargent Token}"
 TOKEN_SYMBOL="${MAINNET_TOKEN_SYMBOL:-AVT}"
 TOKEN_DECIMALS="${MAINNET_TOKEN_DECIMALS:-7}"
 
@@ -113,7 +113,7 @@ stellar_invoke() {
 
 # ── Pre-flight checks ───────────────────────────────────────────────────────
 
-log_section "AgentVerse Mainnet Verification"
+log_section "Stellargent Mainnet Verification"
 log_info "Network: ${NETWORK}"
 log_info "Timestamp: ${TIMESTAMP}"
 
